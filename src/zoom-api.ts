@@ -159,19 +159,43 @@ export class ZoomApiClient {
     // Build URL with query parameters (more reliable than body parameters per Zoom forums)
     const tokenUrl = `https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${encodeURIComponent(accountId)}`;
 
-    const response = await requestUrl({
-      url: tokenUrl,
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${basicAuth}`,
-      },
-    });
+    // Debug logging
+    console.log('[ZoomSync] Fetching OAuth token...');
+    console.log('[ZoomSync] Token URL:', tokenUrl);
+    console.log('[ZoomSync] Account ID:', accountId);
+    console.log('[ZoomSync] Client ID:', clientId ? `${clientId.substring(0, 4)}...` : 'EMPTY');
+
+    let response;
+    try {
+      response = await requestUrl({
+        url: tokenUrl,
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${basicAuth}`,
+        },
+      });
+    } catch (error) {
+      // Obsidian throws errors for non-200 responses
+      console.error('[ZoomSync] OAuth request error:', error);
+      if (error instanceof Error) {
+        console.error('[ZoomSync] Error message:', error.message);
+        // Try to extract more details
+        const anyError = error as unknown as Record<string, unknown>;
+        if (anyError.response) {
+          console.error('[ZoomSync] Response in error:', anyError.response);
+        }
+      }
+      throw new Error(`OAuth token request failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    console.log('[ZoomSync] OAuth response status:', response.status);
 
     if (response.status !== 200) {
       // Try to get error details from response
       let errorDetail = '';
       try {
         const errorData = response.json;
+        console.error('[ZoomSync] OAuth error response:', errorData);
         if (errorData && errorData.reason) {
           errorDetail = `: ${errorData.reason}`;
         } else if (errorData && errorData.error) {
@@ -184,6 +208,7 @@ export class ZoomApiClient {
     }
 
     const data = response.json;
+    console.log('[ZoomSync] OAuth success, token expires in:', data.expires_in, 'seconds');
 
     if (!data.access_token) {
       throw new Error('No access_token in response');
