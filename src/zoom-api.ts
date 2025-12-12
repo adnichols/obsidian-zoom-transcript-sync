@@ -274,6 +274,9 @@ export class ZoomApiClient {
       ? (from instanceof Date ? from.toISOString().split('T')[0] : from)
       : undefined;
 
+    console.log('[ZoomSync] from parameter:', from);
+    console.log('[ZoomSync] fromDate formatted:', fromDate);
+
     do {
       // Build URL with query parameters
       const params: string[] = [];
@@ -287,6 +290,10 @@ export class ZoomApiClient {
 
       let lastError: Error | null = null;
       let pageData: ZoomListRecordingsResponse | null = null;
+
+      // Debug logging
+      console.log('[ZoomSync] Listing recordings...');
+      console.log('[ZoomSync] Request URL:', url);
 
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         // Apply delay before retry (no delay on first attempt)
@@ -306,18 +313,23 @@ export class ZoomApiClient {
             },
           });
 
+          console.log('[ZoomSync] List recordings response status:', response.status);
+
           // Handle rate limiting (429) with Retry-After header support
           if (response.status === 429) {
             this.handleRateLimitedResponse(response);
           }
 
           if (response.status !== 200) {
+            console.error('[ZoomSync] List recordings error response:', response.json);
             throw new Error(`Failed to list recordings: ${response.status}`);
           }
 
           pageData = response.json;
+          console.log('[ZoomSync] Found', pageData?.meetings?.length || 0, 'recordings');
           break; // Success, exit retry loop
         } catch (error) {
+          console.error('[ZoomSync] List recordings request error:', error);
           lastError = error instanceof Error ? error : new Error(String(error));
 
           // Only retry on retryable errors (network/server errors or rate limits)
