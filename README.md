@@ -73,6 +73,37 @@ Your app is now ready to use with the plugin.
 
 ## Installation
 
+### Install via BRAT (Recommended for Beta Testing)
+
+[BRAT](https://github.com/TfTHacker/obsidian42-brat) (Beta Reviewers Auto-update Tester) is a plugin that allows you to install and test beta plugins directly from GitHub repositories before they're available in the official Obsidian Community Plugins store.
+
+#### Prerequisites
+
+Install BRAT first:
+
+1. Open Obsidian Settings
+2. Navigate to **Community plugins**
+3. Click **Browse** and search for "BRAT"
+4. Install **Obsidian42 - BRAT** and **Enable** it
+
+#### Installation Steps
+
+Once BRAT is installed and enabled:
+
+1. **Open the Command Palette** - Press `Ctrl/Cmd + P`
+2. **Run the BRAT command** - Type and select: `BRAT: Add a beta plugin for testing`
+3. **Enter the GitHub repository URL**:
+   ```
+   https://github.com/adnichols/obsidian-zoom-transcript-sync
+   ```
+4. Click **Add Plugin** and wait for installation
+5. Go to **Settings** → **Community plugins** and enable **Zoom Transcript Sync**
+
+#### Keeping Updated
+
+- **Manual updates**: Run `BRAT: Check for updates to all beta plugins and UPDATE` from the command palette
+- **Auto-updates**: Enable in BRAT settings for automatic updates on startup
+
 ### Manual Installation
 
 1. Download the latest release from the [Releases](../../releases) page
