@@ -204,31 +204,31 @@ README.md             # Plugin documentation
 
 **Tasks:**
 
-- [ ] 10.0 Implement Sync Orchestrator
-  - [ ] 10.1 Create `syncTranscripts()` method in main.ts
-  - [ ] 10.2 Implement sync lock to prevent concurrent runs
-  - [ ] 10.3 Coordinate: token fetch -> recording list -> download -> parse -> write -> update state
-  - [ ] 10.4 Process one transcript at a time to limit memory usage
+- [x] 10.0 Implement Sync Orchestrator
+  - [x] 10.1 Create `syncTranscripts()` method in main.ts
+  - [x] 10.2 Implement sync lock to prevent concurrent runs
+  - [x] 10.3 Coordinate: token fetch -> recording list -> download -> parse -> write -> update state
+  - [x] 10.4 Process one transcript at a time to limit memory usage
 
-- [ ] 11.0 Implement Manual Sync Command
-  - [ ] 11.1 Register command with `addCommand()`: id 'sync-now', name 'Sync Zoom Transcripts Now'
-  - [ ] 11.2 Command callback triggers `syncTranscripts()`
+- [x] 11.0 Implement Manual Sync Command
+  - [x] 11.1 Register command with `addCommand()`: id 'sync-now', name 'Sync Zoom Transcripts Now'
+  - [x] 11.2 Command callback triggers `syncTranscripts()`
 
-- [ ] 12.0 Implement Auto-Sync Interval
-  - [ ] 12.1 Use `registerInterval()` with `window.setInterval()`
-  - [ ] 12.2 Interval from `settings.syncIntervalMinutes` converted to milliseconds
-  - [ ] 12.3 Auto-cleanup on plugin unload (handled by registerInterval)
+- [x] 12.0 Implement Auto-Sync Interval
+  - [x] 12.1 Use `registerInterval()` with `window.setInterval()`
+  - [x] 12.2 Interval from `settings.syncIntervalMinutes` converted to milliseconds
+  - [x] 12.3 Auto-cleanup on plugin unload (handled by registerInterval)
 
-- [ ] 13.0 Implement User Notices
-  - [ ] 13.1 Show "Synced {n} new transcript(s)" on successful sync with new transcripts
-  - [ ] 13.2 No notice when sync completes with no new transcripts
-  - [ ] 13.3 Show "Zoom sync failed: invalid credentials. Check settings." on auth errors
-  - [ ] 13.4 Show "Zoom sync failed: network error. Will retry." on network errors
-  - [ ] 13.5 Show "Zoom sync rate limited. Waiting before retry." on 429 responses
+- [x] 13.0 Implement User Notices
+  - [x] 13.1 Show "Synced {n} new transcript(s)" on successful sync with new transcripts
+  - [x] 13.2 No notice when sync completes with no new transcripts
+  - [x] 13.3 Show "Zoom sync failed: invalid credentials. Check settings." on auth errors
+  - [x] 13.4 Show "Zoom sync failed: network error. Will retry." on network errors
+  - [x] 13.5 Show "Zoom sync rate limited. Waiting before retry." on 429 responses
 
-- [ ] 14.0 Implement Settings Buttons
-  - [ ] 14.1 Add "Test Connection" button that validates credentials via OAuth token fetch
-  - [ ] 14.2 Add "Sync Now" button that triggers manual sync
+- [x] 14.0 Implement Settings Buttons
+  - [x] 14.1 Add "Test Connection" button that validates credentials via OAuth token fetch
+  - [x] 14.2 Add "Sync Now" button that triggers manual sync
 
 ### Phase 4: Error Handling, Testing & Polish
 

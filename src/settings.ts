@@ -1,4 +1,5 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
+import { ZoomApiClient } from './zoom-api';
 import ZoomTranscriptSync from './main';
 
 export class ZoomSyncSettingTab extends PluginSettingTab {
@@ -82,5 +83,27 @@ export class ZoomSyncSettingTab extends PluginSettingTab {
             }
           });
       });
+
+    new Setting(containerEl)
+      .setName('Test Connection')
+      .addButton(button => button
+        .setButtonText('Test Connection')
+        .onClick(async () => {
+          try {
+            const client = new ZoomApiClient(this.plugin.settings);
+            await client.getAccessToken();
+            new Notice('Connection successful!');
+          } catch {
+            new Notice('Connection failed: invalid credentials');
+          }
+        }));
+
+    new Setting(containerEl)
+      .setName('Sync Now')
+      .addButton(button => button
+        .setButtonText('Sync Now')
+        .onClick(async () => {
+          await this.plugin.syncTranscripts();
+        }));
   }
 }
