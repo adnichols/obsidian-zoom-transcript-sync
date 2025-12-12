@@ -159,16 +159,16 @@ README.md             # Plugin documentation
   - [x] 5.4 Use `from` date parameter with `lastSyncTimestamp` to reduce API calls
   - [x] 5.5 Extract participant/attendee list from recording metadata (if available in API response)
 
-- [ ] 6.0 Implement Transcript Download
+- [x] 6.0 Implement Transcript Download
   - [x] 6.1 Add `downloadTranscript(downloadUrl)` method to ZoomApiClient
   - [x] 6.2 Use `requestUrl()` to fetch VTT file content with access token authentication
   - [x] 6.3 Handle download errors with retry logic
 
 - [ ] 7.0 Implement VTT Parser
-  - [ ] 7.1 Create VTT parsing function in `src/transcript-writer.ts`
-  - [ ] 7.2 Parse WebVTT format: timestamp lines `00:00:16.239 --> 00:00:27.079`
-  - [ ] 7.3 Extract speaker names from dialogue lines: `Speaker Name: Dialogue text`
-  - [ ] 7.4 Convert to readable format: `**00:00:16 - Speaker Name:**\nDialogue text`
+  - [x] 7.1 Create VTT parsing function in `src/transcript-writer.ts`
+  - [x] 7.2 Parse WebVTT format: timestamp lines `00:00:16.239 --> 00:00:27.079`
+  - [x] 7.3 Extract speaker names from dialogue lines: `Speaker Name: Dialogue text`
+  - [x] 7.4 Convert to readable format: `**00:00:16 - Speaker Name:**\nDialogue text`
 
 - [ ] 8.0 Implement Transcript Writer
   - [ ] 8.1 Create `TranscriptWriter` class in `src/transcript-writer.ts`
