@@ -335,6 +335,15 @@ export class ZoomApiClient {
           break; // Success, exit retry loop
         } catch (error) {
           console.error('[ZoomSync] List recordings request error:', error);
+          // Try to extract more details from the error
+          if (error && typeof error === 'object') {
+            const anyError = error as Record<string, unknown>;
+            if (anyError.status) console.error('[ZoomSync] Error status:', anyError.status);
+            if (anyError.response) console.error('[ZoomSync] Error response:', anyError.response);
+            if (anyError.text) console.error('[ZoomSync] Error text:', anyError.text);
+            if (anyError.json) console.error('[ZoomSync] Error json:', anyError.json);
+            if (anyError.headers) console.error('[ZoomSync] Error headers:', anyError.headers);
+          }
           lastError = error instanceof Error ? error : new Error(String(error));
 
           // Only retry on retryable errors (network/server errors or rate limits)
