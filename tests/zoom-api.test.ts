@@ -102,9 +102,9 @@ describe('ZoomApiClient Integration Tests', () => {
     // Clear mock state
     mockRequestUrl.clear();
 
-    // Setup OAuth token response (needed for all API calls)
-    mockRequestUrl.setResponse(
-      'https://zoom.us/oauth/token',
+    // Setup OAuth token response (use pattern to match URL with query params)
+    mockRequestUrl.setPatternResponse(
+      /zoom\.us\/oauth\/token/,
       mockResponses.oauthToken('test-access-token', 3600)
     );
 

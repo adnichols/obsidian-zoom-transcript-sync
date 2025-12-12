@@ -253,9 +253,9 @@ describe('Sync Flow Integration Tests', () => {
     // Create fresh vault for each test
     mockVault = new MockVault();
 
-    // Setup OAuth token response
-    mockRequestUrl.setResponse(
-      'https://zoom.us/oauth/token',
+    // Setup OAuth token response (use pattern to match URL with query params)
+    mockRequestUrl.setPatternResponse(
+      /zoom\.us\/oauth\/token/,
       mockResponses.oauthToken('test-access-token', 3600)
     );
   });

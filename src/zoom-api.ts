@@ -146,24 +146,25 @@ export class ZoomApiClient {
   /**
    * Fetches a new access token from Zoom OAuth endpoint.
    * Uses Server-to-Server OAuth with account_credentials grant type.
+   *
+   * Note: Uses query string parameters instead of body parameters as this
+   * approach is more commonly successful per Zoom developer forum solutions.
    */
   private async fetchNewToken(): Promise<string> {
     const { accountId, clientId, clientSecret } = this.settings;
 
-    // Create Basic Auth header from clientId:clientSecret (base64 encoded)
+    // Create Basic Auth header from clientId:clientSecret (base64 encoded using UTF-8)
     const basicAuth = btoa(`${clientId}:${clientSecret}`);
 
-    // Request body (form-urlencoded)
-    const body = `grant_type=account_credentials&account_id=${encodeURIComponent(accountId)}`;
+    // Build URL with query parameters (more reliable than body parameters per Zoom forums)
+    const tokenUrl = `https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${encodeURIComponent(accountId)}`;
 
     const response = await requestUrl({
-      url: 'https://zoom.us/oauth/token',
+      url: tokenUrl,
       method: 'POST',
       headers: {
         'Authorization': `Basic ${basicAuth}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: body,
     });
 
     if (response.status !== 200) {

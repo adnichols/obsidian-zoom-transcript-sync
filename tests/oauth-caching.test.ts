@@ -44,8 +44,8 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
   describe('getAccessToken', () => {
     it('fetches new token when none cached', async () => {
       // Setup mock response for OAuth token endpoint
-      mockRequestUrl.setResponse(
-        'https://zoom.us/oauth/token',
+      mockRequestUrl.setPatternResponse(
+        /zoom.us\/oauth\/token/,
         mockResponses.oauthToken('fresh-token-abc', 3600)
       );
 
@@ -60,18 +60,17 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
       // Verify correct headers were sent
       const call = calls[0];
       expect(call.method).toBe('POST');
-      expect(call.headers?.['Content-Type']).toBe('application/x-www-form-urlencoded');
       expect(call.headers?.['Authorization']).toMatch(/^Basic /);
 
-      // Verify body contains grant_type and account_id
-      expect(call.body).toContain('grant_type=account_credentials');
-      expect(call.body).toContain('account_id=test-account-id');
+      // Verify URL contains grant_type and account_id as query parameters
+      expect(call.url).toContain('grant_type=account_credentials');
+      expect(call.url).toContain('account_id=test-account-id');
     });
 
     it('returns cached token when valid', async () => {
       // Setup mock response
-      mockRequestUrl.setResponse(
-        'https://zoom.us/oauth/token',
+      mockRequestUrl.setPatternResponse(
+        /zoom.us\/oauth\/token/,
         mockResponses.oauthToken('cached-token-xyz', 3600)
       );
 
@@ -83,8 +82,8 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
       mockRequestUrl.clear();
 
       // Re-setup mock (in case it's needed, but should NOT be called)
-      mockRequestUrl.setResponse(
-        'https://zoom.us/oauth/token',
+      mockRequestUrl.setPatternResponse(
+        /zoom.us\/oauth\/token/,
         mockResponses.oauthToken('different-token', 3600)
       );
 
@@ -99,8 +98,8 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
 
     it('fetches new token when expired', async () => {
       // Setup mock response for first token
-      mockRequestUrl.setResponse(
-        'https://zoom.us/oauth/token',
+      mockRequestUrl.setPatternResponse(
+        /zoom.us\/oauth\/token/,
         mockResponses.oauthToken('first-token', 3600) // expires in 1 hour
       );
 
@@ -113,8 +112,8 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
 
       // Setup mock response for refreshed token
       mockRequestUrl.clear();
-      mockRequestUrl.setResponse(
-        'https://zoom.us/oauth/token',
+      mockRequestUrl.setPatternResponse(
+        /zoom.us\/oauth\/token/,
         mockResponses.oauthToken('refreshed-token', 3600)
       );
 
@@ -129,8 +128,8 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
 
     it('fetches new token when within 60 second buffer before expiry', async () => {
       // Setup mock response for first token (expires in 90 seconds)
-      mockRequestUrl.setResponse(
-        'https://zoom.us/oauth/token',
+      mockRequestUrl.setPatternResponse(
+        /zoom.us\/oauth\/token/,
         mockResponses.oauthToken('short-lived-token', 90)
       );
 
@@ -144,8 +143,8 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
 
       // Setup mock response for refreshed token
       mockRequestUrl.clear();
-      mockRequestUrl.setResponse(
-        'https://zoom.us/oauth/token',
+      mockRequestUrl.setPatternResponse(
+        /zoom.us\/oauth\/token/,
         mockResponses.oauthToken('new-token-after-buffer', 3600)
       );
 
@@ -160,8 +159,8 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
 
     it('returns cached token when just outside 60 second buffer', async () => {
       // Setup mock response for first token (expires in 120 seconds)
-      mockRequestUrl.setResponse(
-        'https://zoom.us/oauth/token',
+      mockRequestUrl.setPatternResponse(
+        /zoom.us\/oauth\/token/,
         mockResponses.oauthToken('medium-lived-token', 120)
       );
 
@@ -176,8 +175,8 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
       mockRequestUrl.clear();
 
       // Re-setup mock (should NOT be called)
-      mockRequestUrl.setResponse(
-        'https://zoom.us/oauth/token',
+      mockRequestUrl.setPatternResponse(
+        /zoom.us\/oauth\/token/,
         mockResponses.oauthToken('should-not-be-used', 3600)
       );
 
@@ -192,7 +191,7 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
 
     it('handles token fetch error', async () => {
       // Setup mock response for OAuth error
-      mockRequestUrl.setResponse('https://zoom.us/oauth/token', {
+      mockRequestUrl.setPatternResponse(/zoom.us\/oauth\/token/, {
         status: 401,
         body: { error: 'invalid_client' },
       });
@@ -204,7 +203,7 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
 
     it('handles missing access_token in response', async () => {
       // Setup mock response without access_token
-      mockRequestUrl.setResponse('https://zoom.us/oauth/token', {
+      mockRequestUrl.setPatternResponse(/zoom.us\/oauth\/token/, {
         status: 200,
         body: { token_type: 'bearer' }, // missing access_token
       });
@@ -218,8 +217,8 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
   describe('clearAccessToken', () => {
     it('clears cached token', async () => {
       // Setup mock response
-      mockRequestUrl.setResponse(
-        'https://zoom.us/oauth/token',
+      mockRequestUrl.setPatternResponse(
+        /zoom.us\/oauth\/token/,
         mockResponses.oauthToken('original-token', 3600)
       );
 
@@ -232,8 +231,8 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
 
       // Setup new mock response for next fetch
       mockRequestUrl.clear();
-      mockRequestUrl.setResponse(
-        'https://zoom.us/oauth/token',
+      mockRequestUrl.setPatternResponse(
+        /zoom.us\/oauth\/token/,
         mockResponses.oauthToken('new-token-after-clear', 3600)
       );
 
@@ -253,8 +252,8 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
 
     it('allows fetching new token after clear even if not expired', async () => {
       // Setup mock response for first token
-      mockRequestUrl.setResponse(
-        'https://zoom.us/oauth/token',
+      mockRequestUrl.setPatternResponse(
+        /zoom.us\/oauth\/token/,
         mockResponses.oauthToken('first-token', 3600)
       );
 
@@ -266,8 +265,8 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
 
       // Setup new mock response
       mockRequestUrl.clear();
-      mockRequestUrl.setResponse(
-        'https://zoom.us/oauth/token',
+      mockRequestUrl.setPatternResponse(
+        /zoom.us\/oauth\/token/,
         mockResponses.oauthToken('second-token', 3600)
       );
 
@@ -279,8 +278,8 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
 
   describe('token caching integration', () => {
     it('multiple sequential calls use cached token efficiently', async () => {
-      mockRequestUrl.setResponse(
-        'https://zoom.us/oauth/token',
+      mockRequestUrl.setPatternResponse(
+        /zoom.us\/oauth\/token/,
         mockResponses.oauthToken('efficient-token', 3600)
       );
 
@@ -300,8 +299,8 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
     });
 
     it('uses correct Basic Auth encoding for credentials', async () => {
-      mockRequestUrl.setResponse(
-        'https://zoom.us/oauth/token',
+      mockRequestUrl.setPatternResponse(
+        /zoom.us\/oauth\/token/,
         mockResponses.oauthToken('token', 3600)
       );
 
