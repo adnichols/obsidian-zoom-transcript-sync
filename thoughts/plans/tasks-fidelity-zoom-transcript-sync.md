@@ -152,7 +152,7 @@ README.md             # Plugin documentation
 
 **Tasks:**
 
-- [ ] 5.0 Implement Recording List Fetching
+- [x] 5.0 Implement Recording List Fetching
   - [x] 5.1 Add `listRecordings()` method to ZoomApiClient
   - [x] 5.2 Implement pagination handling with `next_page_token`
   - [x] 5.3 Filter recordings to those with `recording_type: "audio_transcript"` in files array
@@ -160,9 +160,9 @@ README.md             # Plugin documentation
   - [x] 5.5 Extract participant/attendee list from recording metadata (if available in API response)
 
 - [ ] 6.0 Implement Transcript Download
-  - [ ] 6.1 Add `downloadTranscript(downloadUrl)` method to ZoomApiClient
-  - [ ] 6.2 Use `requestUrl()` to fetch VTT file content with access token authentication
-  - [ ] 6.3 Handle download errors with retry logic
+  - [x] 6.1 Add `downloadTranscript(downloadUrl)` method to ZoomApiClient
+  - [x] 6.2 Use `requestUrl()` to fetch VTT file content with access token authentication
+  - [x] 6.3 Handle download errors with retry logic
 
 - [ ] 7.0 Implement VTT Parser
   - [ ] 7.1 Create VTT parsing function in `src/transcript-writer.ts`

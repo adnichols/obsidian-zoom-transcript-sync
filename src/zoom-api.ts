@@ -51,6 +51,38 @@ export class ZoomApiClient {
   }
 
   /**
+   * Helper method to create a delay using setTimeout wrapped in a Promise.
+   * @param ms - The number of milliseconds to wait
+   * @returns A Promise that resolves after the specified delay
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Determines if an error is retryable (network/server errors).
+   * @param error - The error to check
+   * @returns true if the error should trigger a retry
+   */
+  private isRetryableError(error: unknown): boolean {
+    // Network errors or server errors (5xx) should be retried
+    if (error instanceof Error) {
+      const message = error.message.toLowerCase();
+      // Retry on network errors
+      if (message.includes('network') || message.includes('timeout') || message.includes('econnreset')) {
+        return true;
+      }
+      // Retry on server errors (5xx status codes)
+      const statusMatch = message.match(/(\d{3})/);
+      if (statusMatch) {
+        const status = parseInt(statusMatch[1], 10);
+        return status >= 500 && status < 600;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Fetches a new access token from Zoom OAuth endpoint.
    * Uses Server-to-Server OAuth with account_credentials grant type.
    */
@@ -163,5 +195,68 @@ export class ZoomApiClient {
     );
 
     return recordingsWithTranscripts;
+  }
+
+  /**
+   * Downloads a transcript file from Zoom.
+   * Uses Bearer token authentication as required by Zoom download URLs.
+   * Includes retry logic with exponential backoff for network/server errors.
+   *
+   * Retry pattern:
+   * - Attempt 1: immediate (no wait)
+   * - Attempt 2: wait 1 second before retry
+   * - Attempt 3: wait 3 seconds before retry
+   * - After 3 failed attempts, throws the original error
+   *
+   * @param downloadUrl - The download URL from a ZoomRecordingFile
+   * @returns The raw VTT content as a string
+   * @throws Error if all retry attempts fail or on non-retryable errors
+   */
+  public async downloadTranscript(downloadUrl: string): Promise<string> {
+    const MAX_ATTEMPTS = 3;
+    const BACKOFF_DELAYS = [0, 1000, 3000]; // immediate, 1s, 3s
+
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      // Apply delay before retry (no delay on first attempt)
+      if (attempt > 0 && BACKOFF_DELAYS[attempt] > 0) {
+        await this.delay(BACKOFF_DELAYS[attempt]);
+      }
+
+      try {
+        const token = await this.getAccessToken();
+
+        const response = await requestUrl({
+          url: downloadUrl,
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (response.status !== 200) {
+          throw new Error(`Failed to download transcript: ${response.status}`);
+        }
+
+        return response.text;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        // Only retry on retryable errors (network/server errors)
+        if (!this.isRetryableError(error)) {
+          throw lastError;
+        }
+
+        // If this was the last attempt, throw the error
+        if (attempt === MAX_ATTEMPTS - 1) {
+          throw lastError;
+        }
+        // Otherwise, continue to next attempt (loop will apply delay)
+      }
+    }
+
+    // This should never be reached, but TypeScript needs it
+    throw lastError ?? new Error('Download failed after retries');
   }
 }
