@@ -154,7 +154,7 @@ export class ZoomApiClient {
     const basicAuth = btoa(`${clientId}:${clientSecret}`);
 
     // Request body (form-urlencoded)
-    const body = `grant_type=account_credentials&account_id=${accountId}`;
+    const body = `grant_type=account_credentials&account_id=${encodeURIComponent(accountId)}`;
 
     const response = await requestUrl({
       url: 'https://zoom.us/oauth/token',
@@ -167,7 +167,19 @@ export class ZoomApiClient {
     });
 
     if (response.status !== 200) {
-      throw new Error(`Failed to fetch access token: ${response.status}`);
+      // Try to get error details from response
+      let errorDetail = '';
+      try {
+        const errorData = response.json;
+        if (errorData && errorData.reason) {
+          errorDetail = `: ${errorData.reason}`;
+        } else if (errorData && errorData.error) {
+          errorDetail = `: ${errorData.error}`;
+        }
+      } catch {
+        // Ignore JSON parsing errors
+      }
+      throw new Error(`Failed to fetch access token: ${response.status}${errorDetail}`);
     }
 
     const data = response.json;
