@@ -129,7 +129,7 @@ README.md             # Plugin documentation
   - [x] 3.4 Implement token refresh on expiry (no refresh tokens - request new)
   - [x] 3.5 Use Obsidian `requestUrl()` for all HTTP requests
 
-- [ ] 4.0 Implement Sync State Manager
+- [x] 4.0 Implement Sync State Manager
   - [x] 4.1 Create `src/sync-state.ts` with `SyncStateManager` class
   - [x] 4.2 Implement `readState()` using `vault.adapter.read()` for `.zoom-sync-state.json`
   - [x] 4.3 Implement `writeState()` with atomic updates (write to temp file, then rename) per specification
