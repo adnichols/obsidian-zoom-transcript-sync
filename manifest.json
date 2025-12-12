@@ -1,0 +1,8 @@
+{
+	"id": "zoom-transcript-sync",
+	"name": "Zoom Transcript Sync",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Syncs Zoom meeting transcripts to the vault",
+	"author": ""
+}

@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Build output (can be rebuilt)
+main.js
+
+# Package manager (using pnpm, not npm)
+package-lock.json
+
+# OS files
+.DS_Store
+
+# IDE files
+.vscode/
+.idea/
