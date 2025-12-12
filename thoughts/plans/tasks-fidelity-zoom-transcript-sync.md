@@ -153,11 +153,11 @@ README.md             # Plugin documentation
 **Tasks:**
 
 - [ ] 5.0 Implement Recording List Fetching
-  - [ ] 5.1 Add `listRecordings()` method to ZoomApiClient
-  - [ ] 5.2 Implement pagination handling with `next_page_token`
-  - [ ] 5.3 Filter recordings to those with `recording_type: "audio_transcript"` in files array
-  - [ ] 5.4 Use `from` date parameter with `lastSyncTimestamp` to reduce API calls
-  - [ ] 5.5 Extract participant/attendee list from recording metadata (if available in API response)
+  - [x] 5.1 Add `listRecordings()` method to ZoomApiClient
+  - [x] 5.2 Implement pagination handling with `next_page_token`
+  - [x] 5.3 Filter recordings to those with `recording_type: "audio_transcript"` in files array
+  - [x] 5.4 Use `from` date parameter with `lastSyncTimestamp` to reduce API calls
+  - [x] 5.5 Extract participant/attendee list from recording metadata (if available in API response)
 
 - [ ] 6.0 Implement Transcript Download
   - [ ] 6.1 Add `downloadTranscript(downloadUrl)` method to ZoomApiClient
