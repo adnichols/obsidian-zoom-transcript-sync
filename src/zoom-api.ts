@@ -316,9 +316,13 @@ export class ZoomApiClient {
             headers: {
               'Authorization': `Bearer ${token}`,
             },
+            throw: false, // Don't throw on non-2xx, let us handle it
           });
 
           console.log('[ZoomSync] List recordings response status:', response.status);
+          if (response.status !== 200) {
+            console.error('[ZoomSync] API Error Response:', response.json);
+          }
 
           // Handle rate limiting (429) with Retry-After header support
           if (response.status === 429) {
