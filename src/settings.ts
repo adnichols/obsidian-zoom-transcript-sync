@@ -92,6 +92,8 @@ export class ZoomSyncSettingTab extends PluginSettingTab {
           try {
             const client = new ZoomApiClient(this.plugin.settings);
             await client.getAccessToken();
+            // Re-enable auto-sync on successful connection
+            this.plugin.autoSyncEnabled = true;
             new Notice('Connection successful!');
           } catch {
             new Notice('Connection failed: invalid credentials');

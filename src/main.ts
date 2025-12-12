@@ -16,6 +16,14 @@ const DEFAULT_SETTINGS: ZoomSyncSettings = {
 export default class ZoomTranscriptSync extends Plugin {
   settings!: ZoomSyncSettings;
   private syncInProgress = false;
+  private apiClient: ZoomApiClient | null = null;
+  autoSyncEnabled = true;
+
+  private devLog(message: string): void {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(message);
+    }
+  }
 
   async onload() {
     await this.loadSettings();
@@ -26,7 +34,11 @@ export default class ZoomTranscriptSync extends Plugin {
       callback: () => this.syncTranscripts()
     });
     this.registerInterval(
-      window.setInterval(() => this.syncTranscripts(), this.settings.syncIntervalMinutes * 60 * 1000)
+      window.setInterval(() => {
+        if (this.autoSyncEnabled) {
+          this.syncTranscripts();
+        }
+      }, this.settings.syncIntervalMinutes * 60 * 1000)
     );
   }
 
@@ -45,10 +57,12 @@ export default class ZoomTranscriptSync extends Plugin {
     }
 
     this.syncInProgress = true;
+    this.devLog('Zoom sync starting...');
 
     try {
-      // Create ZoomApiClient with settings
-      const apiClient = new ZoomApiClient(this.settings);
+      // Create ZoomApiClient with settings (store as instance variable)
+      this.apiClient = new ZoomApiClient(this.settings);
+      const apiClient = this.apiClient;
 
       // Create SyncStateManager
       const stateManager = new SyncStateManager(
@@ -73,6 +87,10 @@ export default class ZoomTranscriptSync extends Plugin {
         if (error instanceof Error) {
           const message = error.message.toLowerCase();
           if (message.includes('401') || message.includes('403') || message.includes('invalid') || message.includes('unauthorized')) {
+            // Clear cached token on auth error
+            apiClient.clearAccessToken();
+            // Disable auto-sync on invalid credentials
+            this.autoSyncEnabled = false;
             new Notice('Zoom sync failed: invalid credentials. Check settings.');
             return;
           }
@@ -88,7 +106,11 @@ export default class ZoomTranscriptSync extends Plugin {
         throw error;
       }
 
+      this.devLog(`Fetched ${recordings.length} recordings`);
+
       let syncedCount = 0;
+      let skippedCount = 0;
+      let failedCount = 0;
 
       // Process one transcript at a time to limit memory usage
       for (const recording of recordings) {
@@ -96,6 +118,8 @@ export default class ZoomTranscriptSync extends Plugin {
 
         // Check if already synced (both state and file existence)
         if (stateManager.isSynced(meetingId)) {
+          skippedCount++;
+          this.devLog(`Skipped (already exists): ${meetingId}`);
           continue;
         }
 
@@ -108,67 +132,84 @@ export default class ZoomTranscriptSync extends Plugin {
           continue;
         }
 
-        // Download VTT content
-        let vttContent;
         try {
-          vttContent = await apiClient.downloadTranscript(transcriptFile.download_url);
-        } catch (error) {
-          // Handle download errors
-          if (error instanceof Error) {
-            const message = error.message.toLowerCase();
-            if (message.includes('429') || message.includes('rate')) {
-              new Notice('Zoom sync rate limited. Waiting before retry.');
-              return;
+          // Download VTT content
+          let vttContent;
+          try {
+            vttContent = await apiClient.downloadTranscript(transcriptFile.download_url);
+          } catch (error) {
+            // Handle download errors - auth and rate limit errors stop entire sync
+            if (error instanceof Error) {
+              const message = error.message.toLowerCase();
+              if (message.includes('401') || message.includes('403') || message.includes('invalid') || message.includes('unauthorized')) {
+                apiClient.clearAccessToken();
+                this.autoSyncEnabled = false;
+                new Notice('Zoom sync failed: invalid credentials. Check settings.');
+                return;
+              }
+              if (message.includes('429') || message.includes('rate')) {
+                new Notice('Zoom sync rate limited. Waiting before retry.');
+                return;
+              }
             }
-            if (message.includes('network') || message.includes('timeout') || message.includes('econnreset')) {
-              new Notice('Zoom sync failed: network error. Will retry.');
-              return;
-            }
+            // Other download errors: fail this transcript, continue to next
+            throw error;
           }
-          throw error;
+
+          // Extract attendees from recording
+          const attendees = extractParticipantsFromRecording(recording);
+
+          // Create TranscriptWriter and generate filename
+          const writer = new TranscriptWriter(recording);
+          let fileName = writer.generateFileName();
+
+          // Check for file collision, append ID if needed
+          if (TranscriptWriter.fileExists(this.app.vault, this.settings.transcriptFolder, fileName)) {
+            fileName = writer.generateFileName(true);
+          }
+
+          // Generate transcript content
+          const content = writer.generateTranscript(vttContent, attendees);
+
+          // Write to vault
+          await TranscriptWriter.writeToVault(
+            this.app.vault,
+            this.settings.transcriptFolder,
+            fileName,
+            content
+          );
+
+          // Mark as synced in state
+          stateManager.markSynced(meetingId, fileName);
+
+          // Write state after each transcript (for crash recovery)
+          await stateManager.writeState();
+
+          this.devLog(`Synced: ${fileName}`);
+          syncedCount++;
+        } catch (error) {
+          // Individual transcript failed - log and continue to next
+          failedCount++;
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.devLog(`Failed: ${meetingId} - ${errorMessage}`);
         }
-
-        // Extract attendees from recording
-        const attendees = extractParticipantsFromRecording(recording);
-
-        // Create TranscriptWriter and generate filename
-        const writer = new TranscriptWriter(recording);
-        let fileName = writer.generateFileName();
-
-        // Check for file collision, append ID if needed
-        if (TranscriptWriter.fileExists(this.app.vault, this.settings.transcriptFolder, fileName)) {
-          fileName = writer.generateFileName(true);
-        }
-
-        // Generate transcript content
-        const content = writer.generateTranscript(vttContent, attendees);
-
-        // Write to vault
-        await TranscriptWriter.writeToVault(
-          this.app.vault,
-          this.settings.transcriptFolder,
-          fileName,
-          content
-        );
-
-        // Mark as synced in state
-        stateManager.markSynced(meetingId, fileName);
-
-        // Write state after each transcript (for crash recovery)
-        await stateManager.writeState();
-
-        syncedCount++;
       }
 
       // Update lastSyncTimestamp in settings
       this.settings.lastSyncTimestamp = Date.now();
       await this.saveSettings();
 
+      this.devLog(`Zoom sync complete: ${syncedCount} synced, ${skippedCount} skipped, ${failedCount} failed`);
+
       // Show appropriate notice based on results
-      if (syncedCount > 0) {
+      if (syncedCount > 0 && failedCount > 0) {
+        new Notice(`Synced ${syncedCount} transcript(s), ${failedCount} failed`);
+      } else if (syncedCount > 0 && failedCount === 0) {
         new Notice(`Synced ${syncedCount} new transcript(s)`);
+      } else if (syncedCount === 0 && failedCount > 0) {
+        new Notice(`Sync failed for ${failedCount} transcript(s)`);
       }
-      // No notice if no new transcripts
+      // No notice if syncedCount === 0 && failedCount === 0
     } finally {
       // Always release lock
       this.syncInProgress = false;

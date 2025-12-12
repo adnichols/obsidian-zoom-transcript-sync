@@ -1,5 +1,19 @@
-import { requestUrl } from 'obsidian';
+import { requestUrl, RequestUrlResponse } from 'obsidian';
 import { ZoomSyncSettings, ZoomListRecordingsResponse, ZoomRecording } from './types';
+
+/**
+ * Custom error class for rate limit (429) responses.
+ * Carries the Retry-After value if present in the response headers.
+ */
+export class RateLimitError extends Error {
+  public readonly retryAfterMs: number | null;
+
+  constructor(message: string, retryAfterMs: number | null) {
+    super(message);
+    this.name = 'RateLimitError';
+    this.retryAfterMs = retryAfterMs;
+  }
+}
 
 /**
  * Extracts participant names from a Zoom recording's metadata.
@@ -60,11 +74,16 @@ export class ZoomApiClient {
   }
 
   /**
-   * Determines if an error is retryable (network/server errors).
+   * Determines if an error is retryable (network/server errors or rate limits).
    * @param error - The error to check
    * @returns true if the error should trigger a retry
    */
   private isRetryableError(error: unknown): boolean {
+    // Rate limit errors are always retryable
+    if (error instanceof RateLimitError) {
+      return true;
+    }
+
     // Network errors or server errors (5xx) should be retried
     if (error instanceof Error) {
       const message = error.message.toLowerCase();
@@ -72,14 +91,56 @@ export class ZoomApiClient {
       if (message.includes('network') || message.includes('timeout') || message.includes('econnreset')) {
         return true;
       }
-      // Retry on server errors (5xx status codes)
+      // Retry on server errors (5xx status codes) or rate limit (429)
       const statusMatch = message.match(/(\d{3})/);
       if (statusMatch) {
         const status = parseInt(statusMatch[1], 10);
-        return status >= 500 && status < 600;
+        return status === 429 || (status >= 500 && status < 600);
       }
     }
     return false;
+  }
+
+  /**
+   * Handles a rate-limited (429) response by throwing a RateLimitError.
+   * Extracts the Retry-After header if present and converts to milliseconds.
+   * @param response - The response with 429 status
+   * @throws RateLimitError with the retry delay if available
+   */
+  private handleRateLimitedResponse(response: RequestUrlResponse): never {
+    let retryAfterMs: number | null = null;
+
+    // Check for Retry-After header (case-insensitive)
+    const headers = response.headers;
+    if (headers) {
+      // Headers may be lowercase or mixed case depending on the environment
+      const retryAfterValue = headers['retry-after'] || headers['Retry-After'];
+      if (retryAfterValue) {
+        const retryAfterSeconds = parseInt(retryAfterValue, 10);
+        if (!isNaN(retryAfterSeconds) && retryAfterSeconds > 0) {
+          retryAfterMs = retryAfterSeconds * 1000;
+        }
+      }
+    }
+
+    throw new RateLimitError(`Rate limited: 429`, retryAfterMs);
+  }
+
+  /**
+   * Calculates the delay for a retry attempt.
+   * Uses Retry-After value for rate limit errors, otherwise uses backoff delays.
+   * @param error - The error that triggered the retry
+   * @param attempt - The current attempt number (0-indexed)
+   * @param backoffDelays - Array of backoff delays in milliseconds
+   * @returns The delay in milliseconds before the next retry
+   */
+  private getRetryDelay(error: unknown, attempt: number, backoffDelays: number[]): number {
+    // For rate limit errors with Retry-After, use that value
+    if (error instanceof RateLimitError && error.retryAfterMs !== null) {
+      return error.retryAfterMs;
+    }
+    // Otherwise use the standard backoff delay
+    return backoffDelays[attempt] ?? backoffDelays[backoffDelays.length - 1];
   }
 
   /**
@@ -137,14 +198,34 @@ export class ZoomApiClient {
   }
 
   /**
+   * Clears the cached access token.
+   * Used when authentication fails to force a new token fetch on next request.
+   */
+  public clearAccessToken(): void {
+    this.accessToken = null;
+    this.tokenExpiresAt = 0;
+  }
+
+  /**
    * Lists cloud recordings for the authenticated user.
    * Calls GET https://api.zoom.us/v2/users/me/recordings
    * Handles pagination automatically using next_page_token.
+   * Includes retry logic with exponential backoff for network/server errors.
+   *
+   * Retry pattern:
+   * - Attempt 1: immediate (no wait)
+   * - Attempt 2: wait 1 second before retry
+   * - Attempt 3: wait 3 seconds before retry
+   * - After 3 failed attempts, throws the original error
    *
    * @param from - Optional start date filter (ISO 8601 string or Date object)
    * @returns Array of all recording objects across all pages
+   * @throws Error if all retry attempts fail or on non-retryable errors
    */
   public async listRecordings(from?: string | Date): Promise<ZoomRecording[]> {
+    const MAX_ATTEMPTS = 3;
+    const BACKOFF_DELAYS = [0, 1000, 3000]; // immediate, 1s, 3s
+
     const token = await this.getAccessToken();
     const allRecordings: ZoomRecording[] = [];
     let nextPageToken: string | undefined;
@@ -166,27 +247,66 @@ export class ZoomApiClient {
       }
       const url = params.length > 0 ? `${baseUrl}?${params.join('&')}` : baseUrl;
 
-      const response = await requestUrl({
-        url: url,
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      let lastError: Error | null = null;
+      let pageData: ZoomListRecordingsResponse | null = null;
 
-      if (response.status !== 200) {
-        throw new Error(`Failed to list recordings: ${response.status}`);
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        // Apply delay before retry (no delay on first attempt)
+        if (attempt > 0 && lastError) {
+          const delayMs = this.getRetryDelay(lastError, attempt, BACKOFF_DELAYS);
+          if (delayMs > 0) {
+            await this.delay(delayMs);
+          }
+        }
+
+        try {
+          const response = await requestUrl({
+            url: url,
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+
+          // Handle rate limiting (429) with Retry-After header support
+          if (response.status === 429) {
+            this.handleRateLimitedResponse(response);
+          }
+
+          if (response.status !== 200) {
+            throw new Error(`Failed to list recordings: ${response.status}`);
+          }
+
+          pageData = response.json;
+          break; // Success, exit retry loop
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error));
+
+          // Only retry on retryable errors (network/server errors or rate limits)
+          if (!this.isRetryableError(error)) {
+            throw lastError;
+          }
+
+          // If this was the last attempt, throw the error
+          if (attempt === MAX_ATTEMPTS - 1) {
+            throw lastError;
+          }
+          // Otherwise, continue to next attempt (loop will apply delay)
+        }
       }
 
-      const data: ZoomListRecordingsResponse = response.json;
+      // This should never be reached if retry loop worked correctly, but TypeScript needs it
+      if (!pageData) {
+        throw lastError ?? new Error('Failed to list recordings after retries');
+      }
 
       // Accumulate recordings from this page
-      if (data.meetings) {
-        allRecordings.push(...data.meetings);
+      if (pageData.meetings) {
+        allRecordings.push(...pageData.meetings);
       }
 
       // Get next page token for pagination
-      nextPageToken = data.next_page_token || undefined;
+      nextPageToken = pageData.next_page_token || undefined;
     } while (nextPageToken);
 
     // Filter to only include recordings that have at least one audio_transcript file
@@ -220,8 +340,11 @@ export class ZoomApiClient {
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       // Apply delay before retry (no delay on first attempt)
-      if (attempt > 0 && BACKOFF_DELAYS[attempt] > 0) {
-        await this.delay(BACKOFF_DELAYS[attempt]);
+      if (attempt > 0 && lastError) {
+        const delayMs = this.getRetryDelay(lastError, attempt, BACKOFF_DELAYS);
+        if (delayMs > 0) {
+          await this.delay(delayMs);
+        }
       }
 
       try {
@@ -235,6 +358,11 @@ export class ZoomApiClient {
           },
         });
 
+        // Handle rate limiting (429) with Retry-After header support
+        if (response.status === 429) {
+          this.handleRateLimitedResponse(response);
+        }
+
         if (response.status !== 200) {
           throw new Error(`Failed to download transcript: ${response.status}`);
         }
@@ -243,7 +371,7 @@ export class ZoomApiClient {
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 
-        // Only retry on retryable errors (network/server errors)
+        // Only retry on retryable errors (network/server errors or rate limits)
         if (!this.isRetryableError(error)) {
           throw lastError;
         }

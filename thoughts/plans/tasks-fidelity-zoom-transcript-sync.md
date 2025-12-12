@@ -248,26 +248,26 @@ README.md             # Plugin documentation
 
 **Tasks:**
 
-- [ ] 15.0 Implement Retry Logic
-  - [ ] 15.1 Add exponential backoff function: immediate, 1s, 3s delays
-  - [ ] 15.2 Implement max 3 retries per network operation
-  - [ ] 15.3 Skip failed item after 3 failures, continue with others
+- [x] 15.0 Implement Retry Logic
+  - [x] 15.1 Add exponential backoff function: immediate, 1s, 3s delays
+  - [x] 15.2 Implement max 3 retries per network operation
+  - [x] 15.3 Skip failed item after 3 failures, continue with others
 
-- [ ] 16.0 Implement Rate Limit Handling
-  - [ ] 16.1 Detect 429 response status
-  - [ ] 16.2 Implement backoff on rate limit (respect Retry-After header if present)
-  - [ ] 16.3 Show rate limit notice to user
+- [x] 16.0 Implement Rate Limit Handling
+  - [x] 16.1 Detect 429 response status
+  - [x] 16.2 Implement backoff on rate limit (respect Retry-After header if present)
+  - [x] 16.3 Show rate limit notice to user
 
-- [ ] 17.0 Implement Auth Error Handling
-  - [ ] 17.1 Detect authentication failures from API responses
-  - [ ] 17.2 Clear cached access token on auth error
-  - [ ] 17.3 Disable auto-sync on invalid credentials (per specification)
-  - [ ] 17.4 Show credentials error notice prompting user to check settings
+- [x] 17.0 Implement Auth Error Handling
+  - [x] 17.1 Detect authentication failures from API responses
+  - [x] 17.2 Clear cached access token on auth error
+  - [x] 17.3 Disable auto-sync on invalid credentials (per specification)
+  - [x] 17.4 Show credentials error notice prompting user to check settings
 
-- [ ] 18.0 Implement Graceful Degradation
-  - [ ] 18.1 Continue sync if individual transcript fails
-  - [ ] 18.2 Console logging in dev mode only: sync start/end timestamps, recordings fetched count, transcripts created/skipped, errors with context
-  - [ ] 18.3 Report partial success in completion notice
+- [x] 18.0 Implement Graceful Degradation
+  - [x] 18.1 Continue sync if individual transcript fails
+  - [x] 18.2 Console logging in dev mode only: sync start/end timestamps, recordings fetched count, transcripts created/skipped, errors with context
+  - [x] 18.3 Report partial success in completion notice
 
 - [ ] 19.0 Set Up Test Environment
   - [ ] 19.1 Configure test runner (Jest or Vitest) for TypeScript
