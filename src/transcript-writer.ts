@@ -1,4 +1,5 @@
-import { ZoomRecording } from './types';
+import { Vault, TAbstractFile, TFolder } from 'obsidian';
+import { ZoomRecording, SyncState } from './types';
 
 /**
  * Represents a parsed VTT entry with timestamp, speaker, and text.
@@ -366,4 +367,91 @@ synced_at: ${syncedAt}
 
     return `## Transcript\n\n${formattedTranscript}`;
   }
+
+  /**
+   * Checks if a file exists in the specified folder.
+   * Uses vault.getAbstractFileByPath() for file existence check.
+   *
+   * @param vault - Obsidian Vault instance for file operations
+   * @param transcriptFolder - Path to the transcript folder within the vault
+   * @param fileName - Name of the file to check (not full path)
+   * @returns true if file exists, false otherwise
+   */
+  static fileExists(vault: Vault, transcriptFolder: string, fileName: string): boolean {
+    const fullPath = `${transcriptFolder}/${fileName}`;
+    const file: TAbstractFile | null = vault.getAbstractFileByPath(fullPath);
+    return file !== null;
+  }
+
+  /**
+   * Ensures the transcript folder exists.
+   * Uses vault.createFolder() to create the folder if it doesn't exist.
+   * Handles the case where the folder already exists without throwing an error.
+   *
+   * @param vault - Obsidian Vault instance for file operations
+   * @param transcriptFolder - Path to the transcript folder within the vault
+   * @returns Promise that resolves when folder exists
+   */
+  static async ensureFolderExists(vault: Vault, transcriptFolder: string): Promise<void> {
+    const folder: TAbstractFile | null = vault.getAbstractFileByPath(transcriptFolder);
+
+    if (folder === null) {
+      // Folder doesn't exist, create it
+      await vault.createFolder(transcriptFolder);
+    } else if (!(folder instanceof TFolder)) {
+      // Path exists but is not a folder (it's a file)
+      throw new Error(`Path "${transcriptFolder}" exists but is not a folder`);
+    }
+    // If folder already exists as TFolder, nothing to do
+  }
+
+  /**
+   * Writes a transcript file to the vault.
+   * Ensures folder exists first, then checks for file collision before writing.
+   * Uses vault.create() to write the file.
+   *
+   * @param vault - Obsidian Vault instance for file operations
+   * @param transcriptFolder - Path to the transcript folder within the vault
+   * @param fileName - Name of the file to create (not full path)
+   * @param content - Content to write to the file
+   * @returns Promise resolving to the file path that was created or already existed
+   */
+  static async writeToVault(
+    vault: Vault,
+    transcriptFolder: string,
+    fileName: string,
+    content: string
+  ): Promise<string> {
+    const fullPath = `${transcriptFolder}/${fileName}`;
+
+    // Ensure the folder exists first
+    await TranscriptWriter.ensureFolderExists(vault, transcriptFolder);
+
+    // Check if file already exists (skip if exists)
+    if (TranscriptWriter.fileExists(vault, transcriptFolder, fileName)) {
+      return fullPath;
+    }
+
+    // Create the new file
+    await vault.create(fullPath, content);
+
+    return fullPath;
+  }
+}
+
+/**
+ * Checks if a meeting should be synced based on sync state.
+ * This is an optional efficiency check - secondary to file existence check.
+ *
+ * @param meetingId - The Zoom meeting ID to check
+ * @param syncState - The current sync state
+ * @returns false if already synced (skip), true if should sync
+ */
+export function shouldSync(meetingId: string, syncState: SyncState): boolean {
+  // Check if meeting is already in sync state
+  if (meetingId in syncState.syncedMeetings) {
+    return false;
+  }
+
+  return true;
 }

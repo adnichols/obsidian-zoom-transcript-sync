@@ -170,7 +170,7 @@ README.md             # Plugin documentation
   - [x] 7.3 Extract speaker names from dialogue lines: `Speaker Name: Dialogue text`
   - [x] 7.4 Convert to readable format: `**00:00:16 - Speaker Name:**\nDialogue text`
 
-- [ ] 8.0 Implement Transcript Writer
+- [x] 8.0 Implement Transcript Writer
   - [x] 8.1 Create `TranscriptWriter` class in `src/transcript-writer.ts`
   - [x] 8.2 Implement YAML frontmatter generation with all specified fields
   - [x] 8.3 Implement Markdown body generation with header, attendees section, transcript section
@@ -179,11 +179,11 @@ README.md             # Plugin documentation
   - [x] 8.6 Escape special characters in frontmatter values
 
 - [ ] 9.0 Implement Collision Prevention
-  - [ ] 9.1 Use `vault.getAbstractFileByPath()` to check file existence before creating
-  - [ ] 9.2 Skip transcript if file already exists (primary deduplication)
-  - [ ] 9.3 Check sync state for efficiency (secondary check, optional)
-  - [ ] 9.4 Use `vault.createFolder()` to ensure transcript folder exists
-  - [ ] 9.5 Use `vault.create()` to write new transcript files
+  - [x] 9.1 Use `vault.getAbstractFileByPath()` to check file existence before creating
+  - [x] 9.2 Skip transcript if file already exists (primary deduplication)
+  - [x] 9.3 Check sync state for efficiency (secondary check, optional)
+  - [x] 9.4 Use `vault.createFolder()` to ensure transcript folder exists
+  - [x] 9.5 Use `vault.create()` to write new transcript files
 
 ### Phase 3: User Experience
 
