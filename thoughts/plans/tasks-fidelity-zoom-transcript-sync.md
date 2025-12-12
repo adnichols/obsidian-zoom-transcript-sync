@@ -105,7 +105,7 @@ README.md             # Plugin documentation
 
 **Tasks:**
 
-- [ ] 1.0 Create Plugin Scaffold
+- [x] 1.0 Create Plugin Scaffold
   - [x] 1.1 Configure `manifest.json` with plugin ID `zoom-transcript-sync`, name, version, minAppVersion (0.15.0), and required fields
   - [x] 1.2 Configure `versions.json` mapping plugin version to minimum Obsidian version
   - [x] 1.3 Configure `tsconfig.json` with TypeScript strict mode enabled (per specification Quality Assurance)
@@ -116,11 +116,11 @@ README.md             # Plugin documentation
   - [x] 1.8 Create `src/settings.ts` with `ZoomSyncSettingTab` extending `PluginSettingTab`
 
 - [ ] 2.0 Implement Settings Interface
-  - [ ] 2.1 Add settings fields: accountId, clientId, clientSecret, transcriptFolder (default: "zoom-transcripts"), syncIntervalMinutes (default: 30)
-  - [ ] 2.2 Create settings tab UI with text inputs for Account ID, Client ID
-  - [ ] 2.3 Add password-type input for Client Secret
-  - [ ] 2.4 Add text input for Transcript Folder path
-  - [ ] 2.5 Add number input for Sync Interval (minutes)
+  - [x] 2.1 Add settings fields: accountId, clientId, clientSecret, transcriptFolder (default: "zoom-transcripts"), syncIntervalMinutes (default: 30)
+  - [x] 2.2 Create settings tab UI with text inputs for Account ID, Client ID
+  - [x] 2.3 Add password-type input for Client Secret
+  - [x] 2.4 Add text input for Transcript Folder path
+  - [x] 2.5 Add number input for Sync Interval (minutes)
 
 - [ ] 3.0 Implement Zoom API Client OAuth
   - [ ] 3.1 Create `src/zoom-api.ts` with `ZoomApiClient` class

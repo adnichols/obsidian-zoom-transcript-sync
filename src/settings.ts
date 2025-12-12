@@ -1,4 +1,4 @@
-import { App, PluginSettingTab } from 'obsidian';
+import { App, PluginSettingTab, Setting } from 'obsidian';
 import ZoomTranscriptSync from './main';
 
 export class ZoomSyncSettingTab extends PluginSettingTab {
@@ -12,6 +12,75 @@ export class ZoomSyncSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    // Setting fields will be added in task 2.0
+
+    containerEl.createEl('h2', { text: 'Zoom Transcript Sync Settings' });
+
+    containerEl.createEl('h3', { text: 'Zoom API Credentials' });
+
+    new Setting(containerEl)
+      .setName('Account ID')
+      .setDesc('Your Zoom account ID')
+      .addText(text => text
+        .setPlaceholder('')
+        .setValue(this.plugin.settings.accountId)
+        .onChange(async (value) => {
+          this.plugin.settings.accountId = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName('Client ID')
+      .setDesc('Your Zoom OAuth app client ID')
+      .addText(text => text
+        .setPlaceholder('')
+        .setValue(this.plugin.settings.clientId)
+        .onChange(async (value) => {
+          this.plugin.settings.clientId = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName('Client Secret')
+      .setDesc('Your Zoom OAuth app client secret')
+      .addText(text => {
+        text.inputEl.type = 'password';
+        text
+          .setPlaceholder('')
+          .setValue(this.plugin.settings.clientSecret)
+          .onChange(async (value) => {
+            this.plugin.settings.clientSecret = value;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    containerEl.createEl('h3', { text: 'Sync Configuration' });
+
+    new Setting(containerEl)
+      .setName('Transcript Folder')
+      .setDesc('Folder path where transcripts will be saved')
+      .addText(text => text
+        .setPlaceholder('zoom-transcripts')
+        .setValue(this.plugin.settings.transcriptFolder)
+        .onChange(async (value) => {
+          this.plugin.settings.transcriptFolder = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName('Sync Interval')
+      .setDesc('How often to sync transcripts (in minutes)')
+      .addText(text => {
+        text.inputEl.type = 'number';
+        text
+          .setPlaceholder('30')
+          .setValue(String(this.plugin.settings.syncIntervalMinutes))
+          .onChange(async (value) => {
+            const numValue = parseInt(value, 10);
+            if (!isNaN(numValue) && numValue > 0) {
+              this.plugin.settings.syncIntervalMinutes = numValue;
+              await this.plugin.saveSettings();
+            }
+          });
+      });
   }
 }
