@@ -115,7 +115,7 @@ README.md             # Plugin documentation
   - [x] 1.7 Create `src/main.ts` plugin entry point extending `Plugin` class with `onload()`, `loadSettings()`, `saveSettings()`
   - [x] 1.8 Create `src/settings.ts` with `ZoomSyncSettingTab` extending `PluginSettingTab`
 
-- [ ] 2.0 Implement Settings Interface
+- [x] 2.0 Implement Settings Interface
   - [x] 2.1 Add settings fields: accountId, clientId, clientSecret, transcriptFolder (default: "zoom-transcripts"), syncIntervalMinutes (default: 30)
   - [x] 2.2 Create settings tab UI with text inputs for Account ID, Client ID
   - [x] 2.3 Add password-type input for Client Secret
@@ -123,11 +123,11 @@ README.md             # Plugin documentation
   - [x] 2.5 Add number input for Sync Interval (minutes)
 
 - [ ] 3.0 Implement Zoom API Client OAuth
-  - [ ] 3.1 Create `src/zoom-api.ts` with `ZoomApiClient` class
-  - [ ] 3.2 Implement `getAccessToken()` method with account_credentials grant type
-  - [ ] 3.3 Implement token caching (1 hour TTL, in-memory only)
-  - [ ] 3.4 Implement token refresh on expiry (no refresh tokens - request new)
-  - [ ] 3.5 Use Obsidian `requestUrl()` for all HTTP requests
+  - [x] 3.1 Create `src/zoom-api.ts` with `ZoomApiClient` class
+  - [x] 3.2 Implement `getAccessToken()` method with account_credentials grant type
+  - [x] 3.3 Implement token caching (1 hour TTL, in-memory only)
+  - [x] 3.4 Implement token refresh on expiry (no refresh tokens - request new)
+  - [x] 3.5 Use Obsidian `requestUrl()` for all HTTP requests
 
 - [ ] 4.0 Implement Sync State Manager
   - [ ] 4.1 Create `src/sync-state.ts` with `SyncStateManager` class
