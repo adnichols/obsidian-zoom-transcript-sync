@@ -122,7 +122,7 @@ README.md             # Plugin documentation
   - [x] 2.4 Add text input for Transcript Folder path
   - [x] 2.5 Add number input for Sync Interval (minutes)
 
-- [ ] 3.0 Implement Zoom API Client OAuth
+- [x] 3.0 Implement Zoom API Client OAuth
   - [x] 3.1 Create `src/zoom-api.ts` with `ZoomApiClient` class
   - [x] 3.2 Implement `getAccessToken()` method with account_credentials grant type
   - [x] 3.3 Implement token caching (1 hour TTL, in-memory only)
@@ -130,12 +130,12 @@ README.md             # Plugin documentation
   - [x] 3.5 Use Obsidian `requestUrl()` for all HTTP requests
 
 - [ ] 4.0 Implement Sync State Manager
-  - [ ] 4.1 Create `src/sync-state.ts` with `SyncStateManager` class
-  - [ ] 4.2 Implement `readState()` using `vault.adapter.read()` for `.zoom-sync-state.json`
-  - [ ] 4.3 Implement `writeState()` with atomic updates (write to temp file, then rename) per specification
-  - [ ] 4.4 Implement `isSynced(meetingId)` lookup method
-  - [ ] 4.5 Implement `markSynced(meetingId, fileName)` update method
-  - [ ] 4.6 State file location: `{transcriptFolder}/.zoom-sync-state.json`
+  - [x] 4.1 Create `src/sync-state.ts` with `SyncStateManager` class
+  - [x] 4.2 Implement `readState()` using `vault.adapter.read()` for `.zoom-sync-state.json`
+  - [x] 4.3 Implement `writeState()` with atomic updates (write to temp file, then rename) per specification
+  - [x] 4.4 Implement `isSynced(meetingId)` lookup method
+  - [x] 4.5 Implement `markSynced(meetingId, fileName)` update method
+  - [x] 4.6 State file location: `{transcriptFolder}/.zoom-sync-state.json`
 
 ### Phase 2: Sync Implementation
 
