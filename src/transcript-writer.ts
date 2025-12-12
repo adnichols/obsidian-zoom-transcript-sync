@@ -1,3 +1,5 @@
+import { ZoomRecording } from './types';
+
 /**
  * Represents a parsed VTT entry with timestamp, speaker, and text.
  */
@@ -109,4 +111,259 @@ export function formatVttEntries(entries: VttEntry[]): string {
       return `${header}\n${entry.text}`;
     })
     .join('\n\n');
+}
+
+/**
+ * TranscriptWriter generates Markdown transcript files from Zoom recording data.
+ * Coordinates frontmatter generation and body generation.
+ */
+export class TranscriptWriter {
+  private recording: ZoomRecording;
+
+  /**
+   * Creates a new TranscriptWriter instance.
+   * @param recording - Zoom recording metadata
+   */
+  constructor(recording: ZoomRecording) {
+    this.recording = recording;
+  }
+
+  /**
+   * Generates a filesystem-safe filename from the meeting topic.
+   * Sanitizes the title by removing/replacing unsafe characters.
+   *
+   * Unsafe characters removed/replaced:
+   * - / \ : * ? " < > | (filesystem unsafe)
+   * - Leading/trailing whitespace trimmed
+   * - Length limited to 200 characters (before extension)
+   *
+   * @param includeId - If true, appends the meeting ID before .md extension for collision prevention
+   * @returns Sanitized filename with .md extension
+   *
+   * @example
+   * // topic: "Q4 Planning: What's Next?", id: 123456789
+   * // generateFileName() returns: "Q4 Planning - Whats Next.md"
+   * // generateFileName(true) returns: "Q4 Planning - Whats Next (123456789).md"
+   */
+  generateFileName(includeId?: boolean): string {
+    const topic = this.recording.topic || 'Untitled Meeting';
+
+    // Sanitize the topic for filesystem safety
+    let sanitized = topic
+      // Replace colon with " -" for readability (e.g., "Topic: Subtopic" -> "Topic - Subtopic")
+      .replace(/:/g, ' -')
+      // Remove unsafe filesystem characters: / \ * ? " < > |
+      .replace(/[/\\*?"<>|]/g, '')
+      // Remove single quotes for cleaner filenames
+      .replace(/'/g, '')
+      // Collapse multiple spaces into single space
+      .replace(/\s+/g, ' ')
+      // Trim leading/trailing whitespace
+      .trim();
+
+    // Handle edge case of empty result after sanitization
+    if (sanitized.length === 0) {
+      sanitized = 'Untitled Meeting';
+    }
+
+    // Limit length to 200 characters (reasonable filesystem limit)
+    if (sanitized.length > 200) {
+      sanitized = sanitized.substring(0, 200).trim();
+    }
+
+    // Append meeting ID if requested (for collision prevention)
+    if (includeId) {
+      return `${sanitized} (${this.recording.id}).md`;
+    }
+
+    return `${sanitized}.md`;
+  }
+
+  /**
+   * Generates a complete Markdown transcript file.
+   * Combines YAML frontmatter with formatted transcript body.
+   *
+   * @param vttContent - Raw VTT file content
+   * @param attendees - List of attendee names
+   * @returns Complete Markdown file content with frontmatter and transcript
+   */
+  generateTranscript(vttContent: string, attendees: string[]): string {
+    const frontmatter = this.generateFrontmatter(attendees);
+    const body = this.generateBody(vttContent, attendees);
+
+    return `${frontmatter}\n\n${body}`;
+  }
+
+  /**
+   * Generates YAML frontmatter for the transcript.
+   *
+   * Fields included:
+   * - meeting_name: from recording topic
+   * - meeting_time: ISO 8601 timestamp from recording start_time
+   * - meeting_duration: duration in minutes
+   * - attendees: array of attendee names
+   * - topic: from recording topic
+   * - host: empty string (not available from ZoomRecording)
+   * - recording_url: play_url from first recording file, or empty
+   * - zoom_meeting_id: recording id as string
+   * - synced_at: current timestamp in ISO 8601 format
+   *
+   * @param attendees - List of attendee names
+   * @returns YAML frontmatter string including delimiters
+   */
+  protected generateFrontmatter(attendees: string[]): string {
+    const meetingName = this.escapeYamlString(this.recording.topic || '');
+    const meetingTime = this.recording.start_time || '';
+    const meetingDuration = this.recording.duration || 0;
+    const topic = this.escapeYamlString(this.recording.topic || '');
+    const host = ''; // Not available from ZoomRecording type
+    const recordingUrl = this.getRecordingUrl();
+    const zoomMeetingId = String(this.recording.id || '');
+    const syncedAt = new Date().toISOString();
+
+    const attendeeLines = attendees
+      .map((name) => `  - ${this.escapeYamlString(name)}`)
+      .join('\n');
+
+    const frontmatter = `---
+meeting_name: "${meetingName}"
+meeting_time: ${meetingTime}
+meeting_duration: ${meetingDuration}
+attendees:
+${attendeeLines}
+topic: "${topic}"
+host: "${host}"
+recording_url: "${recordingUrl}"
+zoom_meeting_id: "${zoomMeetingId}"
+synced_at: ${syncedAt}
+---`;
+
+    return frontmatter;
+  }
+
+  /**
+   * Escapes special characters in a string for safe YAML output.
+   * Handles quotes and backslashes.
+   *
+   * @param value - The string value to escape
+   * @returns Escaped string safe for YAML
+   */
+  private escapeYamlString(value: string): string {
+    return value
+      .replace(/\\/g, '\\\\')  // Escape backslashes first
+      .replace(/"/g, '\\"');   // Escape double quotes
+  }
+
+  /**
+   * Gets the recording URL from the first available recording file.
+   *
+   * @returns The play_url from the first recording file, or empty string
+   */
+  private getRecordingUrl(): string {
+    if (
+      this.recording.recording_files &&
+      this.recording.recording_files.length > 0
+    ) {
+      return this.recording.recording_files[0].play_url || '';
+    }
+    return '';
+  }
+
+  /**
+   * Generates the Markdown body from VTT content.
+   * Includes header section, attendees section, and transcript section.
+   *
+   * @param vttContent - Raw VTT file content
+   * @param attendees - List of attendee names
+   * @returns Formatted Markdown transcript body
+   */
+  protected generateBody(vttContent: string, attendees: string[]): string {
+    const header = this.generateHeader();
+    const attendeesSection = this.generateAttendeesSection(attendees);
+    const transcriptSection = this.generateTranscriptSection(vttContent);
+
+    return `${header}\n\n${attendeesSection}\n\n${transcriptSection}`;
+  }
+
+  /**
+   * Generates the header section with meeting topic, date, duration, and host.
+   *
+   * @returns Header section as Markdown string
+   */
+  private generateHeader(): string {
+    const topic = this.recording.topic || '';
+    const date = this.formatDate(this.recording.start_time);
+    const duration = this.recording.duration || 0;
+    const host = ''; // Not available from ZoomRecording type
+
+    const lines = [
+      `# ${topic}`,
+      '',
+      `**Date:** ${date}`,
+      `**Duration:** ${duration} minutes`,
+      `**Host:** ${host}`
+    ];
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Formats an ISO 8601 date string into human-readable format.
+   * Example: "2025-12-10T10:00:00Z" -> "December 10, 2025"
+   *
+   * @param isoDate - ISO 8601 date string
+   * @returns Human-readable date string (e.g., "December 10, 2025")
+   */
+  private formatDate(isoDate: string | undefined): string {
+    if (!isoDate) {
+      return '';
+    }
+
+    const date = new Date(isoDate);
+
+    // Check for invalid date
+    if (isNaN(date.getTime())) {
+      return '';
+    }
+
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    const month = months[date.getUTCMonth()];
+    const day = date.getUTCDate();
+    const year = date.getUTCFullYear();
+
+    return `${month} ${day}, ${year}`;
+  }
+
+  /**
+   * Generates the attendees section with H2 header and bulleted list.
+   *
+   * @param attendees - List of attendee names
+   * @returns Attendees section as Markdown string
+   */
+  private generateAttendeesSection(attendees: string[]): string {
+    const lines = ['## Attendees'];
+
+    for (const attendee of attendees) {
+      lines.push(`- ${attendee}`);
+    }
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Generates the transcript section with H2 header and formatted entries.
+   *
+   * @param vttContent - Raw VTT file content
+   * @returns Transcript section as Markdown string
+   */
+  private generateTranscriptSection(vttContent: string): string {
+    const entries = parseVtt(vttContent);
+    const formattedTranscript = formatVttEntries(entries);
+
+    return `## Transcript\n\n${formattedTranscript}`;
+  }
 }

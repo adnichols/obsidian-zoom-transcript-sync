@@ -164,19 +164,19 @@ README.md             # Plugin documentation
   - [x] 6.2 Use `requestUrl()` to fetch VTT file content with access token authentication
   - [x] 6.3 Handle download errors with retry logic
 
-- [ ] 7.0 Implement VTT Parser
+- [x] 7.0 Implement VTT Parser
   - [x] 7.1 Create VTT parsing function in `src/transcript-writer.ts`
   - [x] 7.2 Parse WebVTT format: timestamp lines `00:00:16.239 --> 00:00:27.079`
   - [x] 7.3 Extract speaker names from dialogue lines: `Speaker Name: Dialogue text`
   - [x] 7.4 Convert to readable format: `**00:00:16 - Speaker Name:**\nDialogue text`
 
 - [ ] 8.0 Implement Transcript Writer
-  - [ ] 8.1 Create `TranscriptWriter` class in `src/transcript-writer.ts`
-  - [ ] 8.2 Implement YAML frontmatter generation with all specified fields
-  - [ ] 8.3 Implement Markdown body generation with header, attendees section, transcript section
-  - [ ] 8.4 Generate file name from sanitized meeting title (remove/replace unsafe characters for filesystem)
-  - [ ] 8.5 Handle duplicate file names by appending meeting ID if collision detected
-  - [ ] 8.6 Escape special characters in frontmatter values
+  - [x] 8.1 Create `TranscriptWriter` class in `src/transcript-writer.ts`
+  - [x] 8.2 Implement YAML frontmatter generation with all specified fields
+  - [x] 8.3 Implement Markdown body generation with header, attendees section, transcript section
+  - [x] 8.4 Generate file name from sanitized meeting title (remove/replace unsafe characters for filesystem)
+  - [x] 8.5 Handle duplicate file names by appending meeting ID if collision detected
+  - [x] 8.6 Escape special characters in frontmatter values
 
 - [ ] 9.0 Implement Collision Prevention
   - [ ] 9.1 Use `vault.getAbstractFileByPath()` to check file existence before creating
