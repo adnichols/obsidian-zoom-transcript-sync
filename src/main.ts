@@ -9,6 +9,7 @@ const DEFAULT_SETTINGS: ZoomSyncSettings = {
   accountId: "",
   clientId: "",
   clientSecret: "",
+  userEmail: "",
   transcriptFolder: "zoom-transcripts",
   syncIntervalMinutes: 30
 };

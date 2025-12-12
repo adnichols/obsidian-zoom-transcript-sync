@@ -91,6 +91,7 @@ describe('ZoomApiClient Integration Tests', () => {
     accountId: 'test-account-id',
     clientId: 'test-client-id',
     clientSecret: 'test-client-secret',
+    userEmail: 'test@example.com',
     transcriptFolder: 'zoom-transcripts',
     syncIntervalMinutes: 30,
   };
@@ -126,7 +127,7 @@ describe('ZoomApiClient Integration Tests', () => {
         const recording2 = createMockRecording({ id: 222222222, topic: 'Meeting Two' });
 
         mockRequestUrl.setPatternResponse(
-          /api\.zoom\.us\/v2\/users\/me\/recordings/,
+          /api\.zoom\.us\/v2\/users\/[^/]+\/recordings/,
           mockResponses.json(createMockListResponse([recording1, recording2]))
         );
 
@@ -174,7 +175,7 @@ describe('ZoomApiClient Integration Tests', () => {
         });
 
         mockRequestUrl.setPatternResponse(
-          /api\.zoom\.us\/v2\/users\/me\/recordings/,
+          /api\.zoom\.us\/v2\/users\/[^/]+\/recordings/,
           mockResponses.json(
             createMockListResponse([recordingWithTranscript, recordingWithoutTranscript])
           )
@@ -188,27 +189,27 @@ describe('ZoomApiClient Integration Tests', () => {
 
       it('uses from parameter correctly', async () => {
         mockRequestUrl.setPatternResponse(
-          /api\.zoom\.us\/v2\/users\/me\/recordings/,
+          /api\.zoom\.us\/v2\/users\/[^/]+\/recordings/,
           mockResponses.json(createMockListResponse([]))
         );
 
         await client.listRecordings('2025-01-10');
 
-        const calls = mockRequestUrl.getCallsMatching(/api\.zoom\.us\/v2\/users\/me\/recordings/);
+        const calls = mockRequestUrl.getCallsMatching(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/);
         expect(calls).toHaveLength(1);
         expect(calls[0].url).toContain('from=2025-01-10');
       });
 
       it('uses Date object for from parameter correctly', async () => {
         mockRequestUrl.setPatternResponse(
-          /api\.zoom\.us\/v2\/users\/me\/recordings/,
+          /api\.zoom\.us\/v2\/users\/[^/]+\/recordings/,
           mockResponses.json(createMockListResponse([]))
         );
 
         const fromDate = new Date('2025-01-12T00:00:00Z');
         await client.listRecordings(fromDate);
 
-        const calls = mockRequestUrl.getCallsMatching(/api\.zoom\.us\/v2\/users\/me\/recordings/);
+        const calls = mockRequestUrl.getCallsMatching(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/);
         expect(calls).toHaveLength(1);
         expect(calls[0].url).toContain('from=2025-01-12');
       });
@@ -257,7 +258,7 @@ Speaker Two: Thanks for having me.`;
       ];
 
       let callCount = 0;
-      mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/me\/recordings/, (params) => {
+      mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/, (params) => {
         callCount++;
         if (callCount === 1) {
           return mockResponses.json(createMockListResponse(page1Recordings, 'token-page-2'));
@@ -285,7 +286,7 @@ Speaker Two: Thanks for having me.`;
       const page3Recordings = [createMockRecording({ id: 300, topic: 'Meeting 300' })];
 
       let callCount = 0;
-      mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/me\/recordings/, () => {
+      mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/, () => {
         callCount++;
         if (callCount === 1) {
           return mockResponses.json(createMockListResponse(page1Recordings, 'token-2'));
@@ -324,7 +325,7 @@ Speaker Two: Thanks for having me.`;
       }
 
       let callCount = 0;
-      mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/me\/recordings/, () => {
+      mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/, () => {
         callCount++;
         const pageIndex = callCount - 1;
         const nextToken = callCount < 4 ? `token-page-${callCount + 1}` : '';
@@ -347,7 +348,7 @@ Speaker Two: Thanks for having me.`;
       const page2Recordings = [createMockRecording({ id: 222 })];
 
       let callCount = 0;
-      mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/me\/recordings/, () => {
+      mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/, () => {
         callCount++;
         if (callCount === 1) {
           return mockResponses.json(createMockListResponse(page1Recordings, 'my-next-token'));
@@ -358,7 +359,7 @@ Speaker Two: Thanks for having me.`;
 
       await client.listRecordings();
 
-      const calls = mockRequestUrl.getCallsMatching(/api\.zoom\.us\/v2\/users\/me\/recordings/);
+      const calls = mockRequestUrl.getCallsMatching(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/);
       expect(calls).toHaveLength(2);
 
       // First call should not have next_page_token
@@ -376,7 +377,7 @@ Speaker Two: Thanks for having me.`;
     describe('listRecordings retries', () => {
       it('retries on network errors', async () => {
         let callCount = 0;
-        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/me\/recordings/, () => {
+        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/, () => {
           callCount++;
           if (callCount < 3) {
             throw new Error('Network error: ECONNRESET');
@@ -397,7 +398,7 @@ Speaker Two: Thanks for having me.`;
 
       it('retries on 5xx errors', async () => {
         let callCount = 0;
-        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/me\/recordings/, () => {
+        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/, () => {
           callCount++;
           if (callCount < 2) {
             throw new Error('Failed to list recordings: 503');
@@ -418,7 +419,7 @@ Speaker Two: Thanks for having me.`;
 
       it('handles 429 rate limit with Retry-After', async () => {
         let callCount = 0;
-        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/me\/recordings/, () => {
+        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/, () => {
           callCount++;
           if (callCount === 1) {
             return mockResponses.rateLimit(5); // Retry after 5 seconds
@@ -439,7 +440,7 @@ Speaker Two: Thanks for having me.`;
 
       it('throws error after max retries', async () => {
         let callCount = 0;
-        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/me\/recordings/, () => {
+        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/, () => {
           callCount++;
           throw new Error('Network error: timeout');
         });
@@ -458,7 +459,7 @@ Speaker Two: Thanks for having me.`;
 
       it('does not retry on 401 auth errors', async () => {
         let callCount = 0;
-        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/me\/recordings/, () => {
+        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/, () => {
           callCount++;
           throw new Error('Failed to list recordings: 401');
         });
@@ -469,7 +470,7 @@ Speaker Two: Thanks for having me.`;
 
       it('does not retry on 403 forbidden errors', async () => {
         let callCount = 0;
-        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/me\/recordings/, () => {
+        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/, () => {
           callCount++;
           throw new Error('Failed to list recordings: 403');
         });
@@ -574,7 +575,7 @@ Speaker Two: Thanks for having me.`;
     describe('error classification', () => {
       it('retries on timeout errors', async () => {
         let callCount = 0;
-        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/me\/recordings/, () => {
+        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/, () => {
           callCount++;
           if (callCount < 2) {
             throw new Error('Request timeout');
@@ -594,7 +595,7 @@ Speaker Two: Thanks for having me.`;
 
       it('retries on 500 internal server error', async () => {
         let callCount = 0;
-        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/me\/recordings/, () => {
+        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/, () => {
           callCount++;
           if (callCount < 2) {
             throw new Error('Failed: 500');
@@ -614,7 +615,7 @@ Speaker Two: Thanks for having me.`;
 
       it('retries on 502 bad gateway error', async () => {
         let callCount = 0;
-        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/me\/recordings/, () => {
+        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/, () => {
           callCount++;
           if (callCount < 2) {
             throw new Error('Bad Gateway: 502');
@@ -634,7 +635,7 @@ Speaker Two: Thanks for having me.`;
 
       it('does not retry on 400 bad request', async () => {
         let callCount = 0;
-        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/me\/recordings/, () => {
+        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/, () => {
           callCount++;
           throw new Error('Bad request: 400');
         });
@@ -645,7 +646,7 @@ Speaker Two: Thanks for having me.`;
 
       it('does not retry on 404 not found', async () => {
         let callCount = 0;
-        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/me\/recordings/, () => {
+        mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/, () => {
           callCount++;
           throw new Error('Not found: 404');
         });

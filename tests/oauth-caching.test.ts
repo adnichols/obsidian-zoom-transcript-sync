@@ -22,6 +22,7 @@ describe('ZoomApiClient - OAuth Token Caching', () => {
     accountId: 'test-account-id',
     clientId: 'test-client-id',
     clientSecret: 'test-client-secret',
+    userEmail: 'test@example.com',
     transcriptFolder: 'zoom-transcripts',
     syncIntervalMinutes: 30,
   };

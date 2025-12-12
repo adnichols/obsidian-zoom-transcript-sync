@@ -238,6 +238,7 @@ describe('Sync Flow Integration Tests', () => {
     accountId: 'test-account-id',
     clientId: 'test-client-id',
     clientSecret: 'test-client-secret',
+    userEmail: 'test@example.com',
     transcriptFolder: 'zoom-transcripts',
     syncIntervalMinutes: 30,
   };
@@ -275,7 +276,7 @@ describe('Sync Flow Integration Tests', () => {
       });
 
       mockRequestUrl.setPatternResponse(
-        /api\.zoom\.us\/v2\/users\/me\/recordings/,
+        /api\.zoom\.us\/v2\/users\/[^/]+\/recordings/,
         mockResponses.json(createMockListResponse([recording]))
       );
 
@@ -324,7 +325,7 @@ describe('Sync Flow Integration Tests', () => {
       });
 
       mockRequestUrl.setPatternResponse(
-        /api\.zoom\.us\/v2\/users\/me\/recordings/,
+        /api\.zoom\.us\/v2\/users\/[^/]+\/recordings/,
         mockResponses.json(createMockListResponse([recording]))
       );
 
@@ -372,7 +373,7 @@ Jane Smith: Good morning, let's get started.`;
       const recording2 = createMockRecording({ id: 222, topic: 'Meeting Two' });
 
       mockRequestUrl.setPatternResponse(
-        /api\.zoom\.us\/v2\/users\/me\/recordings/,
+        /api\.zoom\.us\/v2\/users\/[^/]+\/recordings/,
         mockResponses.json(createMockListResponse([recording1, recording2]))
       );
 
@@ -415,7 +416,7 @@ Jane Smith: Good morning, let's get started.`;
       const recording2 = createMockRecording({ id: 222, topic: 'New Meeting' });
 
       mockRequestUrl.setPatternResponse(
-        /api\.zoom\.us\/v2\/users\/me\/recordings/,
+        /api\.zoom\.us\/v2\/users\/[^/]+\/recordings/,
         mockResponses.json(createMockListResponse([recording1, recording2]))
       );
 
@@ -441,7 +442,7 @@ Jane Smith: Good morning, let's get started.`;
       const recording = createMockRecording({ id: 999888777, topic: 'Duplicate Meeting' });
 
       mockRequestUrl.setPatternResponse(
-        /api\.zoom\.us\/v2\/users\/me\/recordings/,
+        /api\.zoom\.us\/v2\/users\/[^/]+\/recordings/,
         mockResponses.json(createMockListResponse([recording]))
       );
 
@@ -472,7 +473,7 @@ Jane Smith: Good morning, let's get started.`;
       const recording = createMockRecording({ id: 100, topic: 'Small Meeting' });
 
       mockRequestUrl.setPatternResponse(
-        /api\.zoom\.us\/v2\/users\/me\/recordings/,
+        /api\.zoom\.us\/v2\/users\/[^/]+\/recordings/,
         mockResponses.json(createMockListResponse([recording]))
       );
 
@@ -498,7 +499,7 @@ Jane Smith: Good morning, let's get started.`;
       const recording = createMockRecording({ id: 200, topic: 'Medium Meeting' });
 
       mockRequestUrl.setPatternResponse(
-        /api\.zoom\.us\/v2\/users\/me\/recordings/,
+        /api\.zoom\.us\/v2\/users\/[^/]+\/recordings/,
         mockResponses.json(createMockListResponse([recording]))
       );
 
@@ -525,7 +526,7 @@ Jane Smith: Good morning, let's get started.`;
       const recording = createMockRecording({ id: 300, topic: 'Large Meeting' });
 
       mockRequestUrl.setPatternResponse(
-        /api\.zoom\.us\/v2\/users\/me\/recordings/,
+        /api\.zoom\.us\/v2\/users\/[^/]+\/recordings/,
         mockResponses.json(createMockListResponse([recording]))
       );
 
@@ -565,7 +566,7 @@ Jane Smith: Good morning, let's get started.`;
       const recording3 = createMockRecording({ id: 333, topic: 'Also Succeeds' });
 
       mockRequestUrl.setPatternResponse(
-        /api\.zoom\.us\/v2\/users\/me\/recordings/,
+        /api\.zoom\.us\/v2\/users\/[^/]+\/recordings/,
         mockResponses.json(createMockListResponse([recording1, recording2, recording3]))
       );
 
@@ -604,7 +605,7 @@ Jane Smith: Good morning, let's get started.`;
       ];
 
       mockRequestUrl.setPatternResponse(
-        /api\.zoom\.us\/v2\/users\/me\/recordings/,
+        /api\.zoom\.us\/v2\/users\/[^/]+\/recordings/,
         mockResponses.json(createMockListResponse(recordings))
       );
 
@@ -639,7 +640,7 @@ Jane Smith: Good morning, let's get started.`;
       const recording2 = createMockRecording({ id: 222 });
 
       mockRequestUrl.setPatternResponse(
-        /api\.zoom\.us\/v2\/users\/me\/recordings/,
+        /api\.zoom\.us\/v2\/users\/[^/]+\/recordings/,
         mockResponses.json(createMockListResponse([recording1, recording2]))
       );
 
@@ -669,7 +670,7 @@ Jane Smith: Good morning, let's get started.`;
     });
 
     it('auth error on listRecordings stops sync and disables auto-sync', async () => {
-      mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/me\/recordings/, () => {
+      mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/, () => {
         throw new Error('Failed: 401 Unauthorized');
       });
 
@@ -687,7 +688,7 @@ Jane Smith: Good morning, let's get started.`;
       const recording = createMockRecording({ id: 111 });
 
       mockRequestUrl.setPatternResponse(
-        /api\.zoom\.us\/v2\/users\/me\/recordings/,
+        /api\.zoom\.us\/v2\/users\/[^/]+\/recordings/,
         mockResponses.json(createMockListResponse([recording]))
       );
 
@@ -713,7 +714,7 @@ Jane Smith: Good morning, let's get started.`;
     });
 
     it('rate limit on listRecordings triggers callback', async () => {
-      mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/me\/recordings/, () => {
+      mockRequestUrl.setPatternResponse(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/, () => {
         throw new Error('Rate limited: 429');
       });
 
@@ -738,7 +739,7 @@ Jane Smith: Good morning, let's get started.`;
       const recording3 = createMockRecording({ id: 333, topic: 'Third Meeting' });
 
       mockRequestUrl.setPatternResponse(
-        /api\.zoom\.us\/v2\/users\/me\/recordings/,
+        /api\.zoom\.us\/v2\/users\/[^/]+\/recordings/,
         mockResponses.json(createMockListResponse([recording1, recording2, recording3]))
       );
 

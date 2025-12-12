@@ -268,12 +268,17 @@ export class ZoomApiClient {
     const allRecordings: ZoomRecording[] = [];
     let nextPageToken: string | undefined;
 
-    // Build base URL with optional from parameter
-    const baseUrl = 'https://api.zoom.us/v2/users/me/recordings';
+    // Build base URL with user email (S2S OAuth requires specific user, not "me")
+    const userEmail = this.settings.userEmail;
+    if (!userEmail) {
+      throw new Error('User email is required for Server-to-Server OAuth');
+    }
+    const baseUrl = `https://api.zoom.us/v2/users/${encodeURIComponent(userEmail)}/recordings`;
     const fromDate = from
       ? (from instanceof Date ? from.toISOString().split('T')[0] : from)
       : undefined;
 
+    console.log('[ZoomSync] User email:', userEmail);
     console.log('[ZoomSync] from parameter:', from);
     console.log('[ZoomSync] fromDate formatted:', fromDate);
 
