@@ -55,13 +55,13 @@ export class ZoomSyncSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('User Email')
-      .setDesc('Email of the Zoom user whose recordings to sync (required for Server-to-Server OAuth)')
+      .setName('User Emails')
+      .setDesc('Comma-separated list of Zoom user emails whose recordings to sync (e.g., user1@example.com, user2@example.com)')
       .addText(text => text
-        .setPlaceholder('user@example.com')
-        .setValue(this.plugin.settings.userEmail)
+        .setPlaceholder('user1@example.com, user2@example.com')
+        .setValue(this.plugin.settings.userEmails || this.plugin.settings.userEmail || '')
         .onChange(async (value) => {
-          this.plugin.settings.userEmail = value;
+          this.plugin.settings.userEmails = value;
           await this.plugin.saveSettings();
         }));
 

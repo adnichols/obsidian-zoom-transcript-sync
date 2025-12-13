@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-zoom-transcripts",
-	"version": "1.0.10",
+	"version": "1.0.11",
 	"description": "Obsidian plugin for Zoom transcripts",
 	"main": "main.js",
 	"scripts": {

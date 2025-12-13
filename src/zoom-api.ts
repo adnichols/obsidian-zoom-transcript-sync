@@ -245,9 +245,8 @@ export class ZoomApiClient {
   }
 
   /**
-   * Lists cloud recordings for the entire account.
-   * Calls GET https://api.zoom.us/v2/accounts/{accountId}/recordings
-   * This returns ALL recordings across all users in the account.
+   * Lists cloud recordings for specified users.
+   * Calls GET https://api.zoom.us/v2/users/{email}/recordings for each user.
    * Handles pagination automatically using next_page_token.
    * Loops through months since Zoom limits date range to 1 month per request.
    * Includes retry logic with exponential backoff for network/server errors.
@@ -258,10 +257,8 @@ export class ZoomApiClient {
    * - Attempt 3: wait 3 seconds before retry
    * - After 3 failed attempts, throws the original error
    *
-   * Required scope: cloud_recording:read:list_account_recordings:admin
-   *
    * @param from - Optional start date filter (ISO 8601 string or Date object)
-   * @returns Array of all recording objects across all pages and months
+   * @returns Array of all recording objects across all pages, months, and users
    * @throws Error if all retry attempts fail or on non-retryable errors
    */
   public async listRecordings(from?: string | Date): Promise<ZoomRecording[]> {
@@ -271,12 +268,13 @@ export class ZoomApiClient {
     const token = await this.getAccessToken();
     const allRecordings: ZoomRecording[] = [];
 
-    // Build base URL with account ID (gets ALL recordings across all users)
-    const accountId = this.settings.accountId;
-    if (!accountId) {
-      throw new Error('Account ID is required');
+    // Get list of user emails to query (comma-separated in settings)
+    const userEmailsRaw = this.settings.userEmails || this.settings.userEmail || '';
+    const userEmails = userEmailsRaw.split(',').map(e => e.trim()).filter(e => e.length > 0);
+
+    if (userEmails.length === 0) {
+      throw new Error('At least one user email is required');
     }
-    const baseUrl = `https://api.zoom.us/v2/accounts/${encodeURIComponent(accountId)}/recordings`;
 
     // Determine start date - default to 6 months ago
     let startDate: Date;
@@ -289,35 +287,43 @@ export class ZoomApiClient {
 
     const endDate = new Date(); // Today
 
-    console.log('[ZoomSync] Account ID:', accountId);
+    console.log('[ZoomSync] User emails:', userEmails.join(', '));
     console.log('[ZoomSync] Fetching recordings from:', startDate.toISOString().split('T')[0], 'to:', endDate.toISOString().split('T')[0]);
 
-    // Loop through each month since Zoom limits date range to 1 month per request
-    let currentFrom = new Date(startDate);
-    while (currentFrom < endDate) {
-      // Calculate the end of this month's range (max 1 month)
-      const currentTo = new Date(currentFrom);
-      currentTo.setMonth(currentTo.getMonth() + 1);
-      if (currentTo > endDate) {
-        currentTo.setTime(endDate.getTime());
-      }
+    // Track seen recording UUIDs to avoid duplicates (same meeting, different hosts)
+    const seenRecordingUuids = new Set<string>();
 
-      const fromDateStr = currentFrom.toISOString().split('T')[0];
-      const toDateStr = currentTo.toISOString().split('T')[0];
+    // Loop through each user email
+    for (const userEmail of userEmails) {
+      console.log('[ZoomSync] Fetching recordings for user:', userEmail);
+      const baseUrl = `https://api.zoom.us/v2/users/${encodeURIComponent(userEmail)}/recordings`;
 
-      console.log('[ZoomSync] Fetching month range:', fromDateStr, 'to', toDateStr);
-
-      let nextPageToken: string | undefined;
-
-      do {
-        // Build URL with query parameters
-        const params: string[] = [];
-        params.push(`from=${encodeURIComponent(fromDateStr)}`);
-        params.push(`to=${encodeURIComponent(toDateStr)}`);
-        if (nextPageToken) {
-          params.push(`next_page_token=${encodeURIComponent(nextPageToken)}`);
+      // Loop through each month since Zoom limits date range to 1 month per request
+      let currentFrom = new Date(startDate);
+      while (currentFrom < endDate) {
+        // Calculate the end of this month's range (max 1 month)
+        const currentTo = new Date(currentFrom);
+        currentTo.setMonth(currentTo.getMonth() + 1);
+        if (currentTo > endDate) {
+          currentTo.setTime(endDate.getTime());
         }
-        const url = `${baseUrl}?${params.join('&')}`;
+
+        const fromDateStr = currentFrom.toISOString().split('T')[0];
+        const toDateStr = currentTo.toISOString().split('T')[0];
+
+        console.log('[ZoomSync] Fetching month range:', fromDateStr, 'to', toDateStr);
+
+        let nextPageToken: string | undefined;
+
+        do {
+          // Build URL with query parameters
+          const params: string[] = [];
+          params.push(`from=${encodeURIComponent(fromDateStr)}`);
+          params.push(`to=${encodeURIComponent(toDateStr)}`);
+          if (nextPageToken) {
+            params.push(`next_page_token=${encodeURIComponent(nextPageToken)}`);
+          }
+          const url = `${baseUrl}?${params.join('&')}`;
 
         let lastError: Error | null = null;
         let pageData: ZoomListRecordingsResponse | null = null;
@@ -394,20 +400,26 @@ export class ZoomApiClient {
           throw lastError ?? new Error('Failed to list recordings after retries');
         }
 
-        // Accumulate recordings from this page
+        // Accumulate recordings from this page, deduplicating by UUID
         if (pageData.meetings) {
-          allRecordings.push(...pageData.meetings);
+          for (const meeting of pageData.meetings) {
+            if (!seenRecordingUuids.has(meeting.uuid)) {
+              seenRecordingUuids.add(meeting.uuid);
+              allRecordings.push(meeting);
+            }
+          }
         }
 
         // Get next page token for pagination
         nextPageToken = pageData.next_page_token || undefined;
-      } while (nextPageToken);
+        } while (nextPageToken);
 
-      // Move to next month
-      currentFrom.setMonth(currentFrom.getMonth() + 1);
+        // Move to next month
+        currentFrom.setMonth(currentFrom.getMonth() + 1);
+      }
     }
 
-    console.log('[ZoomSync] Total recordings found across all months:', allRecordings.length);
+    console.log('[ZoomSync] Total unique recordings found across all users/months:', allRecordings.length);
 
     // Filter to only include recordings that have at least one audio_transcript file
     const recordingsWithTranscripts = allRecordings.filter(recording =>

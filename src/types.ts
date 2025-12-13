@@ -2,7 +2,8 @@ export interface ZoomSyncSettings {
   accountId: string;
   clientId: string;
   clientSecret: string;
-  userEmail: string;            // Email of the Zoom user whose recordings to sync
+  userEmail: string;            // DEPRECATED: Use userEmails instead
+  userEmails: string;           // Comma-separated list of Zoom user emails whose recordings to sync
   transcriptFolder: string;     // default: "zoom-transcripts"
   syncIntervalMinutes: number;  // default: 30
   lastSyncTimestamp?: number;
