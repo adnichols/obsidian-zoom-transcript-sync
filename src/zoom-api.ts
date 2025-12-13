@@ -719,8 +719,8 @@ export class ZoomApiClient {
         if (data.transcripts && Array.isArray(data.transcripts)) {
           return data.transcripts as ZoomMeetingTranscript[];
         }
-        // Single transcript object
-        if (data.meeting_id && data.download_url) {
+        // Single transcript object (may have can_download: false)
+        if (data.meeting_id) {
           return [data as ZoomMeetingTranscript];
         }
 
