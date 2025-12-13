@@ -274,9 +274,16 @@ export class ZoomApiClient {
       throw new Error('User email is required for Server-to-Server OAuth');
     }
     const baseUrl = `https://api.zoom.us/v2/users/${encodeURIComponent(userEmail)}/recordings`;
-    const fromDate = from
-      ? (from instanceof Date ? from.toISOString().split('T')[0] : from)
-      : undefined;
+
+    // If no from date specified, default to 6 months ago (Zoom's max lookback)
+    let fromDate: string;
+    if (from) {
+      fromDate = from instanceof Date ? from.toISOString().split('T')[0] : from;
+    } else {
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      fromDate = sixMonthsAgo.toISOString().split('T')[0];
+    }
 
     console.log('[ZoomSync] User email:', userEmail);
     console.log('[ZoomSync] from parameter:', from);
@@ -285,13 +292,11 @@ export class ZoomApiClient {
     do {
       // Build URL with query parameters
       const params: string[] = [];
-      if (fromDate) {
-        params.push(`from=${encodeURIComponent(fromDate)}`);
-      }
+      params.push(`from=${encodeURIComponent(fromDate)}`);
       if (nextPageToken) {
         params.push(`next_page_token=${encodeURIComponent(nextPageToken)}`);
       }
-      const url = params.length > 0 ? `${baseUrl}?${params.join('&')}` : baseUrl;
+      const url = `${baseUrl}?${params.join('&')}`;
 
       let lastError: Error | null = null;
       let pageData: ZoomListRecordingsResponse | null = null;
@@ -335,6 +340,7 @@ export class ZoomApiClient {
           }
 
           pageData = response.json;
+          console.log('[ZoomSync] Full API response:', JSON.stringify(pageData, null, 2));
           console.log('[ZoomSync] Found', pageData?.meetings?.length || 0, 'recordings');
           break; // Success, exit retry loop
         } catch (error) {
