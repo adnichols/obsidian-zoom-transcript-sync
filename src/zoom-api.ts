@@ -245,9 +245,11 @@ export class ZoomApiClient {
   }
 
   /**
-   * Lists cloud recordings for the authenticated user.
-   * Calls GET https://api.zoom.us/v2/users/me/recordings
+   * Lists cloud recordings for the entire account.
+   * Calls GET https://api.zoom.us/v2/accounts/{accountId}/recordings
+   * This returns ALL recordings across all users in the account.
    * Handles pagination automatically using next_page_token.
+   * Loops through months since Zoom limits date range to 1 month per request.
    * Includes retry logic with exponential backoff for network/server errors.
    *
    * Retry pattern:
@@ -256,8 +258,10 @@ export class ZoomApiClient {
    * - Attempt 3: wait 3 seconds before retry
    * - After 3 failed attempts, throws the original error
    *
+   * Required scope: cloud_recording:read:list_account_recordings:admin
+   *
    * @param from - Optional start date filter (ISO 8601 string or Date object)
-   * @returns Array of all recording objects across all pages
+   * @returns Array of all recording objects across all pages and months
    * @throws Error if all retry attempts fail or on non-retryable errors
    */
   public async listRecordings(from?: string | Date): Promise<ZoomRecording[]> {
@@ -266,127 +270,151 @@ export class ZoomApiClient {
 
     const token = await this.getAccessToken();
     const allRecordings: ZoomRecording[] = [];
-    let nextPageToken: string | undefined;
 
-    // Build base URL with user email (S2S OAuth requires specific user, not "me")
-    const userEmail = this.settings.userEmail;
-    if (!userEmail) {
-      throw new Error('User email is required for Server-to-Server OAuth');
+    // Build base URL with account ID (gets ALL recordings across all users)
+    const accountId = this.settings.accountId;
+    if (!accountId) {
+      throw new Error('Account ID is required');
     }
-    const baseUrl = `https://api.zoom.us/v2/users/${encodeURIComponent(userEmail)}/recordings`;
+    const baseUrl = `https://api.zoom.us/v2/accounts/${encodeURIComponent(accountId)}/recordings`;
 
-    // If no from date specified, default to 6 months ago (Zoom's max lookback)
-    let fromDate: string;
+    // Determine start date - default to 6 months ago
+    let startDate: Date;
     if (from) {
-      fromDate = from instanceof Date ? from.toISOString().split('T')[0] : from;
+      startDate = from instanceof Date ? from : new Date(from);
     } else {
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-      fromDate = sixMonthsAgo.toISOString().split('T')[0];
+      startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - 6);
     }
 
-    console.log('[ZoomSync] User email:', userEmail);
-    console.log('[ZoomSync] from parameter:', from);
-    console.log('[ZoomSync] fromDate formatted:', fromDate);
+    const endDate = new Date(); // Today
 
-    do {
-      // Build URL with query parameters
-      const params: string[] = [];
-      params.push(`from=${encodeURIComponent(fromDate)}`);
-      if (nextPageToken) {
-        params.push(`next_page_token=${encodeURIComponent(nextPageToken)}`);
+    console.log('[ZoomSync] Account ID:', accountId);
+    console.log('[ZoomSync] Fetching recordings from:', startDate.toISOString().split('T')[0], 'to:', endDate.toISOString().split('T')[0]);
+
+    // Loop through each month since Zoom limits date range to 1 month per request
+    let currentFrom = new Date(startDate);
+    while (currentFrom < endDate) {
+      // Calculate the end of this month's range (max 1 month)
+      const currentTo = new Date(currentFrom);
+      currentTo.setMonth(currentTo.getMonth() + 1);
+      if (currentTo > endDate) {
+        currentTo.setTime(endDate.getTime());
       }
-      const url = `${baseUrl}?${params.join('&')}`;
 
-      let lastError: Error | null = null;
-      let pageData: ZoomListRecordingsResponse | null = null;
+      const fromDateStr = currentFrom.toISOString().split('T')[0];
+      const toDateStr = currentTo.toISOString().split('T')[0];
 
-      // Debug logging
-      console.log('[ZoomSync] Listing recordings...');
-      console.log('[ZoomSync] Request URL:', url);
+      console.log('[ZoomSync] Fetching month range:', fromDateStr, 'to', toDateStr);
 
-      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        // Apply delay before retry (no delay on first attempt)
-        if (attempt > 0 && lastError) {
-          const delayMs = this.getRetryDelay(lastError, attempt, BACKOFF_DELAYS);
-          if (delayMs > 0) {
-            await this.delay(delayMs);
+      let nextPageToken: string | undefined;
+
+      do {
+        // Build URL with query parameters
+        const params: string[] = [];
+        params.push(`from=${encodeURIComponent(fromDateStr)}`);
+        params.push(`to=${encodeURIComponent(toDateStr)}`);
+        if (nextPageToken) {
+          params.push(`next_page_token=${encodeURIComponent(nextPageToken)}`);
+        }
+        const url = `${baseUrl}?${params.join('&')}`;
+
+        let lastError: Error | null = null;
+        let pageData: ZoomListRecordingsResponse | null = null;
+
+        // Debug logging
+        console.log('[ZoomSync] Listing recordings...');
+        console.log('[ZoomSync] Request URL:', url);
+
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          // Apply delay before retry (no delay on first attempt)
+          if (attempt > 0 && lastError) {
+            const delayMs = this.getRetryDelay(lastError, attempt, BACKOFF_DELAYS);
+            if (delayMs > 0) {
+              await this.delay(delayMs);
+            }
+          }
+
+          try {
+            const response = await requestUrl({
+              url: url,
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+              },
+              throw: false, // Don't throw on non-2xx, let us handle it
+            });
+
+            console.log('[ZoomSync] List recordings response status:', response.status);
+            if (response.status !== 200) {
+              console.error('[ZoomSync] API Error Response:', response.json);
+            }
+
+            // Handle rate limiting (429) with Retry-After header support
+            if (response.status === 429) {
+              this.handleRateLimitedResponse(response);
+            }
+
+            if (response.status !== 200) {
+              console.error('[ZoomSync] List recordings error response:', response.json);
+              throw new Error(`Failed to list recordings: ${response.status}`);
+            }
+
+            pageData = response.json;
+            console.log('[ZoomSync] Found', pageData?.meetings?.length || 0, 'recordings in this page');
+            break; // Success, exit retry loop
+          } catch (error) {
+            console.error('[ZoomSync] List recordings request error:', error);
+            // Try to extract more details from the error
+            if (error && typeof error === 'object') {
+              const anyError = error as Record<string, unknown>;
+              if (anyError.status) console.error('[ZoomSync] Error status:', anyError.status);
+              if (anyError.response) console.error('[ZoomSync] Error response:', anyError.response);
+              if (anyError.text) console.error('[ZoomSync] Error text:', anyError.text);
+              if (anyError.json) console.error('[ZoomSync] Error json:', anyError.json);
+              if (anyError.headers) console.error('[ZoomSync] Error headers:', anyError.headers);
+            }
+            lastError = error instanceof Error ? error : new Error(String(error));
+
+            // Only retry on retryable errors (network/server errors or rate limits)
+            if (!this.isRetryableError(error)) {
+              throw lastError;
+            }
+
+            // If this was the last attempt, throw the error
+            if (attempt === MAX_ATTEMPTS - 1) {
+              throw lastError;
+            }
+            // Otherwise, continue to next attempt (loop will apply delay)
           }
         }
 
-        try {
-          const response = await requestUrl({
-            url: url,
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-            throw: false, // Don't throw on non-2xx, let us handle it
-          });
-
-          console.log('[ZoomSync] List recordings response status:', response.status);
-          if (response.status !== 200) {
-            console.error('[ZoomSync] API Error Response:', response.json);
-          }
-
-          // Handle rate limiting (429) with Retry-After header support
-          if (response.status === 429) {
-            this.handleRateLimitedResponse(response);
-          }
-
-          if (response.status !== 200) {
-            console.error('[ZoomSync] List recordings error response:', response.json);
-            throw new Error(`Failed to list recordings: ${response.status}`);
-          }
-
-          pageData = response.json;
-          console.log('[ZoomSync] Full API response:', JSON.stringify(pageData, null, 2));
-          console.log('[ZoomSync] Found', pageData?.meetings?.length || 0, 'recordings');
-          break; // Success, exit retry loop
-        } catch (error) {
-          console.error('[ZoomSync] List recordings request error:', error);
-          // Try to extract more details from the error
-          if (error && typeof error === 'object') {
-            const anyError = error as Record<string, unknown>;
-            if (anyError.status) console.error('[ZoomSync] Error status:', anyError.status);
-            if (anyError.response) console.error('[ZoomSync] Error response:', anyError.response);
-            if (anyError.text) console.error('[ZoomSync] Error text:', anyError.text);
-            if (anyError.json) console.error('[ZoomSync] Error json:', anyError.json);
-            if (anyError.headers) console.error('[ZoomSync] Error headers:', anyError.headers);
-          }
-          lastError = error instanceof Error ? error : new Error(String(error));
-
-          // Only retry on retryable errors (network/server errors or rate limits)
-          if (!this.isRetryableError(error)) {
-            throw lastError;
-          }
-
-          // If this was the last attempt, throw the error
-          if (attempt === MAX_ATTEMPTS - 1) {
-            throw lastError;
-          }
-          // Otherwise, continue to next attempt (loop will apply delay)
+        // This should never be reached if retry loop worked correctly, but TypeScript needs it
+        if (!pageData) {
+          throw lastError ?? new Error('Failed to list recordings after retries');
         }
-      }
 
-      // This should never be reached if retry loop worked correctly, but TypeScript needs it
-      if (!pageData) {
-        throw lastError ?? new Error('Failed to list recordings after retries');
-      }
+        // Accumulate recordings from this page
+        if (pageData.meetings) {
+          allRecordings.push(...pageData.meetings);
+        }
 
-      // Accumulate recordings from this page
-      if (pageData.meetings) {
-        allRecordings.push(...pageData.meetings);
-      }
+        // Get next page token for pagination
+        nextPageToken = pageData.next_page_token || undefined;
+      } while (nextPageToken);
 
-      // Get next page token for pagination
-      nextPageToken = pageData.next_page_token || undefined;
-    } while (nextPageToken);
+      // Move to next month
+      currentFrom.setMonth(currentFrom.getMonth() + 1);
+    }
+
+    console.log('[ZoomSync] Total recordings found across all months:', allRecordings.length);
 
     // Filter to only include recordings that have at least one audio_transcript file
     const recordingsWithTranscripts = allRecordings.filter(recording =>
       recording.recording_files?.some(file => file.recording_type === 'audio_transcript')
     );
+
+    console.log('[ZoomSync] Recordings with transcripts:', recordingsWithTranscripts.length);
 
     return recordingsWithTranscripts;
   }
