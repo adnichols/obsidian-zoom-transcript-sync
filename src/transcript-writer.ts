@@ -142,9 +142,9 @@ export class TranscriptWriter {
    * @returns Sanitized filename with .md extension
    *
    * @example
-   * // topic: "Q4 Planning: What's Next?", id: 123456789
-   * // generateFileName() returns: "Q4 Planning - Whats Next.md"
-   * // generateFileName(true) returns: "Q4 Planning - Whats Next (123456789).md"
+   * // topic: "Q4 Planning: What's Next?", start_time: "2025-12-10T14:30:00Z", id: 123456789
+   * // generateFileName() returns: "2025-12-10 1430 - Q4 Planning - Whats Next.md"
+   * // generateFileName(true) returns: "2025-12-10 1430 - Q4 Planning - Whats Next (123456789).md"
    */
   generateFileName(includeId?: boolean): string {
     const topic = this.recording.topic || 'Untitled Meeting';
@@ -172,12 +172,46 @@ export class TranscriptWriter {
       sanitized = sanitized.substring(0, 200).trim();
     }
 
+    // Format the meeting time as "YYYY-MM-DD HHMM" for the filename prefix
+    const timePrefix = this.formatTimeForFilename(this.recording.start_time);
+
+    // Build filename with time prefix
+    const baseName = timePrefix ? `${timePrefix} - ${sanitized}` : sanitized;
+
     // Append meeting ID if requested (for collision prevention)
     if (includeId) {
-      return `${sanitized} (${this.recording.id}).md`;
+      return `${baseName} (${this.recording.id}).md`;
     }
 
-    return `${sanitized}.md`;
+    return `${baseName}.md`;
+  }
+
+  /**
+   * Formats an ISO 8601 date string into a filesystem-safe format for filenames.
+   * Example: "2025-12-10T14:30:00Z" -> "2025-12-10 1430"
+   *
+   * @param isoDate - ISO 8601 date string
+   * @returns Formatted date string safe for filenames, or empty string if invalid
+   */
+  private formatTimeForFilename(isoDate: string | undefined): string {
+    if (!isoDate) {
+      return '';
+    }
+
+    const date = new Date(isoDate);
+
+    // Check for invalid date
+    if (isNaN(date.getTime())) {
+      return '';
+    }
+
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const hours = String(date.getUTCHours()).padStart(2, '0');
+    const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+
+    return `${year}-${month}-${day} ${hours}${minutes}`;
   }
 
   /**
