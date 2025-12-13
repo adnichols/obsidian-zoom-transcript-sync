@@ -65,6 +65,28 @@ export class ZoomSyncSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }));
 
+    containerEl.createEl('h3', { text: 'Transcript Sources' });
+
+    new Setting(containerEl)
+      .setName('Fetch Recording Transcripts')
+      .setDesc('Sync transcripts from cloud recordings (requires cloud recording to be enabled)')
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.settings.fetchRecordingTranscripts)
+        .onChange(async (value) => {
+          this.plugin.settings.fetchRecordingTranscripts = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName('Fetch AI Companion Transcripts')
+      .setDesc('Sync transcripts from AI Companion (requires report:read:admin scope)')
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.settings.fetchAICompanionTranscripts)
+        .onChange(async (value) => {
+          this.plugin.settings.fetchAICompanionTranscripts = value;
+          await this.plugin.saveSettings();
+        }));
+
     containerEl.createEl('h3', { text: 'Sync Configuration' });
 
     new Setting(containerEl)

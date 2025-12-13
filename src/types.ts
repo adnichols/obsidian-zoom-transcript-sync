@@ -7,6 +7,8 @@ export interface ZoomSyncSettings {
   transcriptFolder: string;     // default: "zoom-transcripts"
   syncIntervalMinutes: number;  // default: 30
   lastSyncTimestamp?: number;
+  fetchRecordingTranscripts: boolean;    // Fetch transcripts from cloud recordings (default: true)
+  fetchAICompanionTranscripts: boolean;  // Fetch transcripts from AI Companion (default: false)
 }
 
 export interface SyncState {
@@ -75,4 +77,48 @@ export interface ZoomListRecordingsResponse {
   total_records: number;
   next_page_token: string;
   meetings: ZoomRecording[];
+}
+
+/**
+ * Zoom API response types for reports/meetings endpoint
+ */
+export interface ZoomPastMeeting {
+  uuid: string;
+  id: number;
+  type: number;
+  topic: string;
+  user_name: string;
+  user_email: string;
+  start_time: string;
+  end_time: string;
+  duration: number;
+  total_minutes: number;
+  participants_count: number;
+}
+
+export interface ZoomListPastMeetingsResponse {
+  from: string;
+  to: string;
+  page_size: number;
+  total_records: number;
+  next_page_token: string;
+  meetings: ZoomPastMeeting[];
+}
+
+/**
+ * Zoom API response for meeting transcript endpoint
+ */
+export interface ZoomMeetingTranscript {
+  meeting_id: string;
+  account_id: string;
+  meeting_topic: string;
+  host_id: string;
+  transcript_created_time: string;
+  can_download: boolean;
+  auto_delete: boolean;
+  download_url: string;
+}
+
+export interface ZoomMeetingTranscriptResponse {
+  transcripts?: ZoomMeetingTranscript[];
 }

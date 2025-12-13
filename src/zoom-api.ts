@@ -1,5 +1,12 @@
 import { requestUrl, RequestUrlResponse } from 'obsidian';
-import { ZoomSyncSettings, ZoomListRecordingsResponse, ZoomRecording } from './types';
+import {
+  ZoomSyncSettings,
+  ZoomListRecordingsResponse,
+  ZoomRecording,
+  ZoomListPastMeetingsResponse,
+  ZoomPastMeeting,
+  ZoomMeetingTranscript
+} from './types';
 
 /**
  * Custom error class for rate limit (429) responses.
@@ -269,7 +276,6 @@ export class ZoomApiClient {
       nextPageToken = data.next_page_token || undefined;
     } while (nextPageToken);
 
-    console.log('[ZoomSync] Found', allEmails.length, 'users in account');
     return allEmails;
   }
 
@@ -284,8 +290,7 @@ export class ZoomApiClient {
     let userEmails: string[];
     try {
       userEmails = await this.listAccountUsers();
-    } catch (error) {
-      console.log('[ZoomSync] Could not list account users, falling back to configured emails:', error);
+    } catch {
       // Fall back to configured emails
       const userEmailsRaw = this.settings.userEmails || this.settings.userEmail || '';
       userEmails = userEmailsRaw.split(',').map(e => e.trim()).filter(e => e.length > 0);
@@ -305,8 +310,6 @@ export class ZoomApiClient {
     }
 
     const endDate = new Date(); // Today
-
-    console.log('[ZoomSync] Syncing recordings for', userEmails.length, 'users from', startDate.toISOString().split('T')[0]);
 
     // Track seen recording UUIDs to avoid duplicates (same meeting, different hosts)
     const seenRecordingUuids = new Set<string>();
@@ -418,8 +421,6 @@ export class ZoomApiClient {
       recording.recording_files?.some(file => file.recording_type === 'audio_transcript')
     );
 
-    console.log('[ZoomSync] Found', recordingsWithTranscripts.length, 'recordings with transcripts');
-
     return recordingsWithTranscripts;
   }
 
@@ -491,6 +492,310 @@ export class ZoomApiClient {
     }
 
     // This should never be reached, but TypeScript needs it
+    throw lastError ?? new Error('Download failed after retries');
+  }
+
+  /**
+   * Double-encodes a meeting UUID for use in Zoom API URLs.
+   * Zoom requires UUIDs containing special characters (like / or =) to be double-encoded.
+   * Example: "X1bqnmGcSuiBotRPclL42g==" becomes "X1bqnmGcSuiBotRPclL42g%253D%253D"
+   *
+   * @param uuid - The meeting UUID to encode
+   * @returns The double-encoded UUID
+   */
+  private doubleEncodeUuid(uuid: string): string {
+    return encodeURIComponent(encodeURIComponent(uuid));
+  }
+
+  /**
+   * Lists past meetings for specified users using the Reports API.
+   * Calls GET https://api.zoom.us/v2/report/users/{email}/meetings for each user.
+   * Handles pagination automatically using next_page_token.
+   * Loops through months since Zoom limits date range to 30 days per request.
+   *
+   * Requires scope: report:read:admin
+   *
+   * @param from - Optional start date filter (ISO 8601 string or Date object)
+   * @returns Array of all past meeting objects across all pages, months, and users
+   * @throws Error if all retry attempts fail or on non-retryable errors
+   */
+  public async listPastMeetings(from?: string | Date): Promise<ZoomPastMeeting[]> {
+    const MAX_ATTEMPTS = 3;
+    const BACKOFF_DELAYS = [0, 1000, 3000];
+
+    const token = await this.getAccessToken();
+    const allMeetings: ZoomPastMeeting[] = [];
+
+    // Try to get all users in the account automatically
+    let userEmails: string[];
+    try {
+      userEmails = await this.listAccountUsers();
+    } catch {
+      const userEmailsRaw = this.settings.userEmails || this.settings.userEmail || '';
+      userEmails = userEmailsRaw.split(',').map(e => e.trim()).filter(e => e.length > 0);
+    }
+
+    if (userEmails.length === 0) {
+      throw new Error('No users found. Please add the user:read:admin scope or configure user emails manually.');
+    }
+
+    // Determine start date - default to 6 months ago
+    // Reports API only allows queries within last 6 months, so clamp to 5.5 months to be safe
+    const maxLookbackDate = new Date();
+    maxLookbackDate.setMonth(maxLookbackDate.getMonth() - 5);
+    maxLookbackDate.setDate(maxLookbackDate.getDate() - 15); // 5 months and 15 days ago
+
+    let startDate: Date;
+    if (from) {
+      startDate = from instanceof Date ? new Date(from) : new Date(from);
+      // Clamp to max lookback if provided date is too old
+      if (startDate < maxLookbackDate) {
+        startDate = maxLookbackDate;
+      }
+    } else {
+      startDate = maxLookbackDate;
+    }
+
+    const endDate = new Date();
+
+    // Track seen meeting UUIDs to avoid duplicates
+    const seenMeetingUuids = new Set<string>();
+
+    // Loop through each user email
+    for (const userEmail of userEmails) {
+      const baseUrl = `https://api.zoom.us/v2/report/users/${encodeURIComponent(userEmail)}/meetings`;
+
+      // Loop through each month since Zoom limits date range to 30 days per request
+      let currentFrom = new Date(startDate);
+      while (currentFrom < endDate) {
+        // Calculate the end of this month's range (max 30 days)
+        const currentTo = new Date(currentFrom);
+        currentTo.setDate(currentTo.getDate() + 30);
+        if (currentTo > endDate) {
+          currentTo.setTime(endDate.getTime());
+        }
+
+        const fromDateStr = currentFrom.toISOString().split('T')[0];
+        const toDateStr = currentTo.toISOString().split('T')[0];
+
+        let nextPageToken: string | undefined;
+
+        do {
+          const params: string[] = [];
+          params.push('type=past');
+          params.push(`from=${encodeURIComponent(fromDateStr)}`);
+          params.push(`to=${encodeURIComponent(toDateStr)}`);
+          params.push('page_size=300');
+          if (nextPageToken) {
+            params.push(`next_page_token=${encodeURIComponent(nextPageToken)}`);
+          }
+          const url = `${baseUrl}?${params.join('&')}`;
+
+          let lastError: Error | null = null;
+          let pageData: ZoomListPastMeetingsResponse | null = null;
+
+          for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            if (attempt > 0 && lastError) {
+              const delayMs = this.getRetryDelay(lastError, attempt, BACKOFF_DELAYS);
+              if (delayMs > 0) {
+                await this.delay(delayMs);
+              }
+            }
+
+            try {
+              const response = await requestUrl({
+                url: url,
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                },
+                throw: false,
+              });
+
+              if (response.status === 429) {
+                this.handleRateLimitedResponse(response);
+              }
+
+              if (response.status !== 200) {
+                throw new Error(`Failed to list past meetings for ${userEmail}: ${response.status} - ${response.json?.message || 'Unknown error'}`);
+              }
+
+              pageData = response.json;
+              break;
+            } catch (error) {
+              lastError = error instanceof Error ? error : new Error(String(error));
+
+              if (!this.isRetryableError(error)) {
+                throw lastError;
+              }
+
+              if (attempt === MAX_ATTEMPTS - 1) {
+                throw lastError;
+              }
+            }
+          }
+
+          if (!pageData) {
+            throw lastError ?? new Error('Failed to list past meetings after retries');
+          }
+
+          // Accumulate meetings from this page, deduplicating by UUID
+          if (pageData.meetings) {
+            for (const meeting of pageData.meetings) {
+              if (!seenMeetingUuids.has(meeting.uuid)) {
+                seenMeetingUuids.add(meeting.uuid);
+                allMeetings.push(meeting);
+              }
+            }
+          }
+
+          nextPageToken = pageData.next_page_token || undefined;
+        } while (nextPageToken);
+
+        // Move to next 30-day period
+        currentFrom.setDate(currentFrom.getDate() + 30);
+      }
+    }
+
+    return allMeetings;
+  }
+
+  /**
+   * Gets transcript information for a specific meeting using the AI Companion transcript endpoint.
+   * Calls GET https://api.zoom.us/v2/meetings/{double-encoded-UUID}/transcript
+   *
+   * @param meetingUuid - The meeting UUID (will be double-encoded automatically)
+   * @returns Array of transcript objects if available, or null if no transcript exists
+   * @throws Error on API errors (except 404 which returns null)
+   */
+  public async getMeetingTranscript(meetingUuid: string): Promise<ZoomMeetingTranscript[] | null> {
+    const MAX_ATTEMPTS = 3;
+    const BACKOFF_DELAYS = [0, 1000, 3000];
+
+    const token = await this.getAccessToken();
+    const encodedUuid = this.doubleEncodeUuid(meetingUuid);
+    const url = `https://api.zoom.us/v2/meetings/${encodedUuid}/transcript`;
+
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      if (attempt > 0 && lastError) {
+        const delayMs = this.getRetryDelay(lastError, attempt, BACKOFF_DELAYS);
+        if (delayMs > 0) {
+          await this.delay(delayMs);
+        }
+      }
+
+      try {
+        const response = await requestUrl({
+          url: url,
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          throw: false,
+        });
+
+        // 404 means no transcript available - return null instead of throwing
+        if (response.status === 404) {
+          return null;
+        }
+
+        if (response.status === 429) {
+          this.handleRateLimitedResponse(response);
+        }
+
+        if (response.status !== 200) {
+          throw new Error(`Failed to get meeting transcript: ${response.status} - ${response.json?.message || 'Unknown error'}`);
+        }
+
+        // Response is an array of transcript objects
+        const data = response.json;
+
+        if (Array.isArray(data)) {
+          return data as ZoomMeetingTranscript[];
+        }
+        // In case it's wrapped in an object
+        if (data.transcripts && Array.isArray(data.transcripts)) {
+          return data.transcripts as ZoomMeetingTranscript[];
+        }
+        // Single transcript object
+        if (data.meeting_id && data.download_url) {
+          return [data as ZoomMeetingTranscript];
+        }
+
+        return null;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        if (!this.isRetryableError(error)) {
+          throw lastError;
+        }
+
+        if (attempt === MAX_ATTEMPTS - 1) {
+          throw lastError;
+        }
+      }
+    }
+
+    throw lastError ?? new Error('Failed to get meeting transcript after retries');
+  }
+
+  /**
+   * Downloads a transcript from a direct download URL (used for AI Companion transcripts).
+   * These URLs don't require Bearer token authentication.
+   *
+   * @param downloadUrl - The download URL from a ZoomMeetingTranscript
+   * @returns The raw transcript content as a string
+   * @throws Error if download fails
+   */
+  public async downloadTranscriptDirect(downloadUrl: string): Promise<string> {
+    const MAX_ATTEMPTS = 3;
+    const BACKOFF_DELAYS = [0, 1000, 3000];
+
+    const token = await this.getAccessToken();
+
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      if (attempt > 0 && lastError) {
+        const delayMs = this.getRetryDelay(lastError, attempt, BACKOFF_DELAYS);
+        if (delayMs > 0) {
+          await this.delay(delayMs);
+        }
+      }
+
+      try {
+        const response = await requestUrl({
+          url: downloadUrl,
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (response.status === 429) {
+          this.handleRateLimitedResponse(response);
+        }
+
+        if (response.status !== 200) {
+          throw new Error(`Failed to download transcript: ${response.status}`);
+        }
+
+        return response.text;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        if (!this.isRetryableError(error)) {
+          throw lastError;
+        }
+
+        if (attempt === MAX_ATTEMPTS - 1) {
+          throw lastError;
+        }
+      }
+    }
+
     throw lastError ?? new Error('Download failed after retries');
   }
 }
