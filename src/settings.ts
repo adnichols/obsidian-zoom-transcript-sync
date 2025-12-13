@@ -118,5 +118,19 @@ export class ZoomSyncSettingTab extends PluginSettingTab {
         .onClick(async () => {
           await this.plugin.syncTranscripts();
         }));
+
+    new Setting(containerEl)
+      .setName('Full Re-sync')
+      .setDesc('Clear sync history and fetch all recordings from the beginning')
+      .addButton(button => button
+        .setButtonText('Reset & Sync All')
+        .setWarning()
+        .onClick(async () => {
+          // Clear the lastSyncTimestamp
+          this.plugin.settings.lastSyncTimestamp = undefined;
+          await this.plugin.saveSettings();
+          new Notice('Sync history cleared. Starting full sync...');
+          await this.plugin.syncTranscripts();
+        }));
   }
 }
