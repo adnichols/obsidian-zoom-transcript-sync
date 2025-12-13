@@ -159,12 +159,6 @@ export class ZoomApiClient {
     // Build URL with query parameters (more reliable than body parameters per Zoom forums)
     const tokenUrl = `https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${encodeURIComponent(accountId)}`;
 
-    // Debug logging
-    console.log('[ZoomSync] Fetching OAuth token...');
-    console.log('[ZoomSync] Token URL:', tokenUrl);
-    console.log('[ZoomSync] Account ID:', accountId);
-    console.log('[ZoomSync] Client ID:', clientId ? `${clientId.substring(0, 4)}...` : 'EMPTY');
-
     let response;
     try {
       response = await requestUrl({
@@ -175,40 +169,16 @@ export class ZoomApiClient {
         },
       });
     } catch (error) {
-      // Obsidian throws errors for non-200 responses
-      console.error('[ZoomSync] OAuth request error:', error);
-      if (error instanceof Error) {
-        console.error('[ZoomSync] Error message:', error.message);
-        // Try to extract more details
-        const anyError = error as unknown as Record<string, unknown>;
-        if (anyError.response) {
-          console.error('[ZoomSync] Response in error:', anyError.response);
-        }
-      }
       throw new Error(`OAuth token request failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 
-    console.log('[ZoomSync] OAuth response status:', response.status);
-
     if (response.status !== 200) {
-      // Try to get error details from response
-      let errorDetail = '';
-      try {
-        const errorData = response.json;
-        console.error('[ZoomSync] OAuth error response:', errorData);
-        if (errorData && errorData.reason) {
-          errorDetail = `: ${errorData.reason}`;
-        } else if (errorData && errorData.error) {
-          errorDetail = `: ${errorData.error}`;
-        }
-      } catch {
-        // Ignore JSON parsing errors
-      }
-      throw new Error(`Failed to fetch access token: ${response.status}${errorDetail}`);
+      const errorData = response.json;
+      const errorDetail = errorData?.reason || errorData?.error || '';
+      throw new Error(`Failed to fetch access token: ${response.status}${errorDetail ? `: ${errorDetail}` : ''}`);
     }
 
     const data = response.json;
-    console.log('[ZoomSync] OAuth success, token expires in:', data.expires_in, 'seconds');
 
     if (!data.access_token) {
       throw new Error('No access_token in response');
@@ -270,8 +240,6 @@ export class ZoomApiClient {
     const allEmails: string[] = [];
     let nextPageToken: string | undefined;
 
-    console.log('[ZoomSync] Fetching all users in account...');
-
     do {
       const params: string[] = ['page_size=300'];
       if (nextPageToken) {
@@ -287,7 +255,6 @@ export class ZoomApiClient {
       });
 
       if (response.status !== 200) {
-        console.error('[ZoomSync] Failed to list users:', response.status, response.json);
         throw new Error(`Failed to list users: ${response.status} - ${response.json?.message || 'Unknown error'}`);
       }
 
@@ -339,15 +306,13 @@ export class ZoomApiClient {
 
     const endDate = new Date(); // Today
 
-    console.log('[ZoomSync] User emails:', userEmails.join(', '));
-    console.log('[ZoomSync] Fetching recordings from:', startDate.toISOString().split('T')[0], 'to:', endDate.toISOString().split('T')[0]);
+    console.log('[ZoomSync] Syncing recordings for', userEmails.length, 'users from', startDate.toISOString().split('T')[0]);
 
     // Track seen recording UUIDs to avoid duplicates (same meeting, different hosts)
     const seenRecordingUuids = new Set<string>();
 
     // Loop through each user email
     for (const userEmail of userEmails) {
-      console.log('[ZoomSync] Fetching recordings for user:', userEmail);
       const baseUrl = `https://api.zoom.us/v2/users/${encodeURIComponent(userEmail)}/recordings`;
 
       // Loop through each month since Zoom limits date range to 1 month per request
@@ -363,8 +328,6 @@ export class ZoomApiClient {
         const fromDateStr = currentFrom.toISOString().split('T')[0];
         const toDateStr = currentTo.toISOString().split('T')[0];
 
-        console.log('[ZoomSync] Fetching month range:', fromDateStr, 'to', toDateStr);
-
         let nextPageToken: string | undefined;
 
         do {
@@ -379,10 +342,6 @@ export class ZoomApiClient {
 
         let lastError: Error | null = null;
         let pageData: ZoomListRecordingsResponse | null = null;
-
-        // Debug logging
-        console.log('[ZoomSync] Listing recordings...');
-        console.log('[ZoomSync] Request URL:', url);
 
         for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
           // Apply delay before retry (no delay on first attempt)
@@ -403,35 +362,18 @@ export class ZoomApiClient {
               throw: false, // Don't throw on non-2xx, let us handle it
             });
 
-            console.log('[ZoomSync] List recordings response status:', response.status);
-            if (response.status !== 200) {
-              console.error('[ZoomSync] API Error Response:', response.json);
-            }
-
             // Handle rate limiting (429) with Retry-After header support
             if (response.status === 429) {
               this.handleRateLimitedResponse(response);
             }
 
             if (response.status !== 200) {
-              console.error('[ZoomSync] List recordings error response:', response.json);
-              throw new Error(`Failed to list recordings: ${response.status}`);
+              throw new Error(`Failed to list recordings for ${userEmail}: ${response.status} - ${response.json?.message || 'Unknown error'}`);
             }
 
             pageData = response.json;
-            console.log('[ZoomSync] Found', pageData?.meetings?.length || 0, 'recordings in this page');
             break; // Success, exit retry loop
           } catch (error) {
-            console.error('[ZoomSync] List recordings request error:', error);
-            // Try to extract more details from the error
-            if (error && typeof error === 'object') {
-              const anyError = error as Record<string, unknown>;
-              if (anyError.status) console.error('[ZoomSync] Error status:', anyError.status);
-              if (anyError.response) console.error('[ZoomSync] Error response:', anyError.response);
-              if (anyError.text) console.error('[ZoomSync] Error text:', anyError.text);
-              if (anyError.json) console.error('[ZoomSync] Error json:', anyError.json);
-              if (anyError.headers) console.error('[ZoomSync] Error headers:', anyError.headers);
-            }
             lastError = error instanceof Error ? error : new Error(String(error));
 
             // Only retry on retryable errors (network/server errors or rate limits)
@@ -471,14 +413,12 @@ export class ZoomApiClient {
       }
     }
 
-    console.log('[ZoomSync] Total unique recordings found across all users/months:', allRecordings.length);
-
     // Filter to only include recordings that have at least one audio_transcript file
     const recordingsWithTranscripts = allRecordings.filter(recording =>
       recording.recording_files?.some(file => file.recording_type === 'audio_transcript')
     );
 
-    console.log('[ZoomSync] Recordings with transcripts:', recordingsWithTranscripts.length);
+    console.log('[ZoomSync] Found', recordingsWithTranscripts.length, 'recordings with transcripts');
 
     return recordingsWithTranscripts;
   }

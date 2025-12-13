@@ -92,9 +92,13 @@ describe('ZoomApiClient Integration Tests', () => {
     clientId: 'test-client-id',
     clientSecret: 'test-client-secret',
     userEmail: 'test@example.com',
+    userEmails: 'test@example.com',  // Prevents trying to list account users
     transcriptFolder: 'zoom-transcripts',
     syncIntervalMinutes: 30,
   };
+
+  // Use a recent from date to avoid multi-month pagination in tests
+  const recentFromDate = new Date('2025-01-01');
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -131,7 +135,7 @@ describe('ZoomApiClient Integration Tests', () => {
           mockResponses.json(createMockListResponse([recording1, recording2]))
         );
 
-        const recordings = await client.listRecordings();
+        const recordings = await client.listRecordings(recentFromDate);
 
         expect(recordings).toHaveLength(2);
         expect(recordings[0].topic).toBe('Meeting One');
@@ -181,7 +185,7 @@ describe('ZoomApiClient Integration Tests', () => {
           )
         );
 
-        const recordings = await client.listRecordings();
+        const recordings = await client.listRecordings(recentFromDate);
 
         expect(recordings).toHaveLength(1);
         expect(recordings[0].topic).toBe('With Transcript');
@@ -267,7 +271,7 @@ Speaker Two: Thanks for having me.`;
         }
       });
 
-      const recordings = await client.listRecordings();
+      const recordings = await client.listRecordings(recentFromDate);
 
       expect(recordings).toHaveLength(4);
       expect(callCount).toBe(2);
@@ -297,7 +301,7 @@ Speaker Two: Thanks for having me.`;
         }
       });
 
-      const recordings = await client.listRecordings();
+      const recordings = await client.listRecordings(recentFromDate);
 
       expect(recordings).toHaveLength(3);
       expect(callCount).toBe(3);
@@ -332,7 +336,7 @@ Speaker Two: Thanks for having me.`;
         return mockResponses.json(createMockListResponse(pageRecordings[pageIndex], nextToken));
       });
 
-      const recordings = await client.listRecordings();
+      const recordings = await client.listRecordings(recentFromDate);
 
       // 4 pages * 5 recordings = 20 total
       expect(recordings).toHaveLength(20);
@@ -357,7 +361,7 @@ Speaker Two: Thanks for having me.`;
         }
       });
 
-      await client.listRecordings();
+      await client.listRecordings(recentFromDate);
 
       const calls = mockRequestUrl.getCallsMatching(/api\.zoom\.us\/v2\/users\/[^/]+\/recordings/);
       expect(calls).toHaveLength(2);
@@ -385,7 +389,7 @@ Speaker Two: Thanks for having me.`;
           return mockResponses.json(createMockListResponse([createMockRecording({ id: 123 })]));
         });
 
-        const recordingsPromise = client.listRecordings();
+        const recordingsPromise = client.listRecordings(recentFromDate);
 
         // Advance time for backoff delays (1s + 3s = 4s total)
         await vi.advanceTimersByTimeAsync(4000);
@@ -406,7 +410,7 @@ Speaker Two: Thanks for having me.`;
           return mockResponses.json(createMockListResponse([createMockRecording({ id: 456 })]));
         });
 
-        const recordingsPromise = client.listRecordings();
+        const recordingsPromise = client.listRecordings(recentFromDate);
 
         // Advance time for backoff delay (1s)
         await vi.advanceTimersByTimeAsync(1000);
@@ -427,7 +431,7 @@ Speaker Two: Thanks for having me.`;
           return mockResponses.json(createMockListResponse([createMockRecording({ id: 789 })]));
         });
 
-        const recordingsPromise = client.listRecordings();
+        const recordingsPromise = client.listRecordings(recentFromDate);
 
         // Advance time for the Retry-After delay
         await vi.advanceTimersByTimeAsync(5000);
@@ -446,7 +450,7 @@ Speaker Two: Thanks for having me.`;
         });
 
         // Run the promise and time advancement together
-        const listPromise = client.listRecordings().catch((e) => e);
+        const listPromise = client.listRecordings(recentFromDate).catch((e) => e);
 
         // Advance time for all backoff delays (1s + 3s = 4s total)
         await vi.advanceTimersByTimeAsync(4000);
@@ -464,7 +468,7 @@ Speaker Two: Thanks for having me.`;
           throw new Error('Failed to list recordings: 401');
         });
 
-        await expect(client.listRecordings()).rejects.toThrow('401');
+        await expect(client.listRecordings(recentFromDate)).rejects.toThrow('401');
         expect(callCount).toBe(1); // No retries for 401
       });
 
@@ -475,7 +479,7 @@ Speaker Two: Thanks for having me.`;
           throw new Error('Failed to list recordings: 403');
         });
 
-        await expect(client.listRecordings()).rejects.toThrow('403');
+        await expect(client.listRecordings(recentFromDate)).rejects.toThrow('403');
         expect(callCount).toBe(1); // No retries for 403
       });
     });
@@ -583,7 +587,7 @@ Speaker Two: Thanks for having me.`;
           return mockResponses.json(createMockListResponse([]));
         });
 
-        const listPromise = client.listRecordings();
+        const listPromise = client.listRecordings(recentFromDate);
 
         // Advance time for backoff delay (1s)
         await vi.advanceTimersByTimeAsync(1000);
@@ -603,7 +607,7 @@ Speaker Two: Thanks for having me.`;
           return mockResponses.json(createMockListResponse([]));
         });
 
-        const listPromise = client.listRecordings();
+        const listPromise = client.listRecordings(recentFromDate);
 
         // Advance time for backoff delay (1s)
         await vi.advanceTimersByTimeAsync(1000);
@@ -623,7 +627,7 @@ Speaker Two: Thanks for having me.`;
           return mockResponses.json(createMockListResponse([]));
         });
 
-        const listPromise = client.listRecordings();
+        const listPromise = client.listRecordings(recentFromDate);
 
         // Advance time for backoff delay (1s)
         await vi.advanceTimersByTimeAsync(1000);
@@ -640,7 +644,7 @@ Speaker Two: Thanks for having me.`;
           throw new Error('Bad request: 400');
         });
 
-        await expect(client.listRecordings()).rejects.toThrow('400');
+        await expect(client.listRecordings(recentFromDate)).rejects.toThrow('400');
         expect(callCount).toBe(1);
       });
 
@@ -651,7 +655,7 @@ Speaker Two: Thanks for having me.`;
           throw new Error('Not found: 404');
         });
 
-        await expect(client.listRecordings()).rejects.toThrow('404');
+        await expect(client.listRecordings(recentFromDate)).rejects.toThrow('404');
         expect(callCount).toBe(1);
       });
     });
