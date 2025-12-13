@@ -261,6 +261,51 @@ export class ZoomApiClient {
    * @returns Array of all recording objects across all pages, months, and users
    * @throws Error if all retry attempts fail or on non-retryable errors
    */
+  /**
+   * Lists all users in the Zoom account.
+   * Requires scope: user:read:admin or user:read:list_users:admin
+   */
+  private async listAccountUsers(): Promise<string[]> {
+    const token = await this.getAccessToken();
+    const allEmails: string[] = [];
+    let nextPageToken: string | undefined;
+
+    console.log('[ZoomSync] Fetching all users in account...');
+
+    do {
+      const params: string[] = ['page_size=300'];
+      if (nextPageToken) {
+        params.push(`next_page_token=${encodeURIComponent(nextPageToken)}`);
+      }
+      const url = `https://api.zoom.us/v2/users?${params.join('&')}`;
+
+      const response = await requestUrl({
+        url,
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` },
+        throw: false,
+      });
+
+      if (response.status !== 200) {
+        console.error('[ZoomSync] Failed to list users:', response.status, response.json);
+        throw new Error(`Failed to list users: ${response.status} - ${response.json?.message || 'Unknown error'}`);
+      }
+
+      const data = response.json;
+      if (data.users) {
+        for (const user of data.users) {
+          if (user.email) {
+            allEmails.push(user.email);
+          }
+        }
+      }
+      nextPageToken = data.next_page_token || undefined;
+    } while (nextPageToken);
+
+    console.log('[ZoomSync] Found', allEmails.length, 'users in account');
+    return allEmails;
+  }
+
   public async listRecordings(from?: string | Date): Promise<ZoomRecording[]> {
     const MAX_ATTEMPTS = 3;
     const BACKOFF_DELAYS = [0, 1000, 3000]; // immediate, 1s, 3s
@@ -268,12 +313,19 @@ export class ZoomApiClient {
     const token = await this.getAccessToken();
     const allRecordings: ZoomRecording[] = [];
 
-    // Get list of user emails to query (comma-separated in settings)
-    const userEmailsRaw = this.settings.userEmails || this.settings.userEmail || '';
-    const userEmails = userEmailsRaw.split(',').map(e => e.trim()).filter(e => e.length > 0);
+    // Try to get all users in the account automatically
+    let userEmails: string[];
+    try {
+      userEmails = await this.listAccountUsers();
+    } catch (error) {
+      console.log('[ZoomSync] Could not list account users, falling back to configured emails:', error);
+      // Fall back to configured emails
+      const userEmailsRaw = this.settings.userEmails || this.settings.userEmail || '';
+      userEmails = userEmailsRaw.split(',').map(e => e.trim()).filter(e => e.length > 0);
+    }
 
     if (userEmails.length === 0) {
-      throw new Error('At least one user email is required');
+      throw new Error('No users found. Please add the user:read:admin scope or configure user emails manually.');
     }
 
     // Determine start date - default to 6 months ago
