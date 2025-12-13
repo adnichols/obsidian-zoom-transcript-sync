@@ -143,8 +143,8 @@ export class TranscriptWriter {
    *
    * @example
    * // topic: "Q4 Planning: What's Next?", start_time: "2025-12-10T14:30:00Z", id: 123456789
-   * // generateFileName() returns: "2025-12-10 1430 - Q4 Planning - Whats Next.md"
-   * // generateFileName(true) returns: "2025-12-10 1430 - Q4 Planning - Whats Next (123456789).md"
+   * // generateFileName() returns: "Q4 Planning - Whats Next - 2025-12-10 1430.md"
+   * // generateFileName(true) returns: "Q4 Planning - Whats Next - 2025-12-10 1430 (123456789).md"
    */
   generateFileName(includeId?: boolean): string {
     const topic = this.recording.topic || 'Untitled Meeting';
@@ -172,11 +172,11 @@ export class TranscriptWriter {
       sanitized = sanitized.substring(0, 200).trim();
     }
 
-    // Format the meeting time as "YYYY-MM-DD HHMM" for the filename prefix
-    const timePrefix = this.formatTimeForFilename(this.recording.start_time);
+    // Format the meeting time as "YYYY-MM-DD HHMM" for the filename suffix
+    const timeSuffix = this.formatTimeForFilename(this.recording.start_time);
 
-    // Build filename with time prefix
-    const baseName = timePrefix ? `${timePrefix} - ${sanitized}` : sanitized;
+    // Build filename with time suffix
+    const baseName = timeSuffix ? `${sanitized} - ${timeSuffix}` : sanitized;
 
     // Append meeting ID if requested (for collision prevention)
     if (includeId) {
